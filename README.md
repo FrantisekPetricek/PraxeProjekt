@@ -32,7 +32,7 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 
 ---
 
-## Instalace a Spuštění
+## Spuštění
 
 ### Požadavky
 * **NVIDIA GPU** (Doporučeno min. 8GB VRAM).
@@ -51,3 +51,21 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 ├── docker-compose.yml    # Konfigurace kontejnerů
 └── uv.lock               # Uzamčené verze závislostí
 ```
+
+#### Spuštění backendu
+```{bash}
+cd .\Backend\
+make dev
+```
+
+Tím se spustí
+
+- **API** na portu `8000`
+
+#### API Endpoints
+
+- `POST /tts` - Dostane text který následně vrátí jako audio stream (WAV)
+- `POST /stt_file` - Převod hlasu na audio (Whisper)
+- `GET /get_history` - Výpis hisotrie  
+- `DELETE /delete_history` - Smazání historie  
+- `POST /chat_realtime` - Komunikace mezi uživatelem a AI pomocí audio streamu  
