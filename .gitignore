@@ -1,0 +1,56 @@
+# ==========================
+# BACKEND (Python / UV)
+# ==========================
+Backend/.venv/
+Backend/**/__pycache__/
+Backend/*.py[cod]
+Backend/.env
+Backend/.env.local
+Backend/whisper_cache/
+Backend/huggingface/
+Backend/.cache/
+Backend/torch/
+Backend/.uv_cache/
+Backend/generated_audio/
+Backend/sessions_history/
+Backend/chat_history.json
+Backend/api/DLL/
+Backend/api/whisper_cache/
+
+# Docker
+.docker/
+
+# ==========================
+# UNITY CLIENT
+# ==========================
+UnityClient/[Ll]ibrary/
+UnityClient/[Tt]emp/
+UnityClient/[Oo]bj/
+UnityClient/[Bb]uild/
+UnityClient/[Bb]uilds/
+UnityClient/[Ll]ogs/
+UnityClient/[Uu]ser[Ss]ettings/
+
+# Visual Studio / Rider generované soubory (ve složce Unity)
+UnityClient/.vs/
+UnityClient/*.csproj
+UnityClient/*.unityproj
+UnityClient/*.sln
+UnityClient/*.suo
+UnityClient/*.tmp
+UnityClient/*.user
+UnityClient/*.userprefs
+UnityClient/*.pidb
+UnityClient/*.booproj
+UnityClient/*.svd
+UnityClient/*.pdb
+UnityClient/*.opendb
+UnityClient/*.VC.db
+
+# ==========================
+# SYSTÉMOVÉ
+# ==========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

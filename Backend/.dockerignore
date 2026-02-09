@@ -1,0 +1,29 @@
+# Ignoruj virtuální prostředí (kritické!)
+.venv
+venv
+ENV
+
+# Ignoruj Git historii
+.git
+.gitignore
+
+# Ignoruj dočasné soubory Pythonu
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Ignoruj audio soubory (ať se zbytečně nekopírují při buildu)
+# Protože je tam mapujeme přes volumes, nemusí být v image
+App/generated_audio/*
+!App/generated_audio/.gitkeep
+App/DLL
+# Ignoruj lokální nastavení editoru
+.vscode
+.idea
+
+# Ignoruj Env soubor (bezpečnější je ho nekopírovat, docker-compose ho načte)
+.env
+
+docker
+api/src/generated_audio
