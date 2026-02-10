@@ -33,18 +33,13 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 
 ```mermaid
 graph TD
-    %% --- DEFINICE STYLŮ ---
-    classDef ai fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef unity fill:#222,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef backend fill:#69b3a2,stroke:#333,stroke-width:2px;
-    classDef decision fill:#ffcc00,stroke:#333,stroke-width:2px,color:#000;
-
+    
     User((Uživatel))
 
     
     subgraph Client ["Frontend (Unity)"]
-        Unity[Unity Avatar]:::unity
-        InputDecider{"Zvuk / Text"}:::unity
+        Unity[Unity Avatar]
+        InputDecider{"Zvuk / Text"}
     end
 
     User -- "Mluví (Audio)" --> InputDecider
@@ -55,13 +50,13 @@ graph TD
 
     
     subgraph Server ["Backend Services"]
-        API[FastAPI Router]:::backend
+        API[FastAPI Router]
         
-        CheckInput{"Audio nebo<br/>Text?"}:::decision
+        CheckInput{"Audio nebo<br/>Text?"}
         
-        STT["Faster-Whisper<br/>(Audio to Text)"]:::ai
-        LLM["Llama 3.1<br/>(Generování odpovědi)"]:::ai
-        TTS["Coqui XTTS<br/>(Text to Speech)"]:::ai
+        STT["Faster-Whisper<br/>(Audio to Text)"]
+        LLM["Llama 3.1<br/>(Generování odpovědi)"]
+        TTS["Coqui XTTS<br/>(Text to Speech)"]
     end
 
     %% --- TOK DAT V BACKENDU ---
