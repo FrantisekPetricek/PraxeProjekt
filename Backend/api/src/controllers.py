@@ -62,6 +62,31 @@ SYSTEM_PROMPT = (
 )
 
 
+def _read_history_file():
+    """
+    Načte syrová data historie z JSON souboru.
+    V případě chyby vrací prázdný seznam a zaloguje chybu.
+    """
+    if not os.path.exists(HISTORY_FILE):
+        return []
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            return json.loads(content) if content else []
+    except Exception as e:
+        print(f"[Error reading history]: {e}")
+        return []
+
+
+def extract_emotion(text: str, default: str = "neutral") -> str:
+    """
+    Vrátí emoci zapsanou v hranatých závorkách, např. [happy].
+    Pokud žádná emoce není nalezena, vrátí default.
+    """
+    match = re.search(r"\[(.*?)\]", text)
+    return match.group(1) if match else default
+
+
 def cleanup_temp_folder(keep_last=MAX_TEMP_FILES):
     """
     Ponechá ve složce temp jen posledních N souborů. Zbytek smaže.
@@ -94,20 +119,17 @@ def clean_text_completely(text: str) -> str:
 
 def get_chat_history() -> HistoryResponse:
     history_data = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                row_data = json.loads(content if content else "[]")
-                for item in row_data:
-                    clean_content = clean_text_completely(item.get("content", ""))
-                    history_data.append(
-                        ChatMessage(
-                            role=item.get("role", "UNKNOWN"), content=clean_content
-                        )
-                    )
-        except Exception as e:
-            print(f"[Error reading history]: {e}")
+    row_data = _read_history_file()
+
+    for item in row_data:
+        clean_content = clean_text_completely(item.get("content", ""))
+        history_data.append(
+            ChatMessage(
+                role=item.get("role", "UNKNOWN"),
+                content=clean_content,
+            )
+        )
+
     return HistoryResponse(messages=history_data)
 
 
@@ -121,14 +143,7 @@ def delete_history():
 
 
 def save_to_history(role: str, content: str):
-    data = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                content_file = f.read().strip()
-                data = json.loads(content_file if content_file else "[]")
-        except Exception as e:
-            print(f"[Error reading history]: {e}")
+    data = _read_history_file()
 
     data.append(
         {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
@@ -147,6 +162,10 @@ def generate_audio_elevenlabs(text: str, voice_id: str, prefix: str = "tts") -> 
 
     clean_text = clean_text_completely(text)
     if not clean_text:
+        return ""
+
+    if not voice_id:
+        print("Chybí voice_id pro TTS, audio nebude vygenerováno.")
         return ""
 
     print(f"TTS ({prefix}): {clean_text[:30]}...")
@@ -183,13 +202,7 @@ def process_player_tts(text: str) -> str:
 async def process_npc_chat(user_text: str):
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-    raw_history = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                raw_history = json.loads(f.read().strip() or "[]")
-        except Exception as e:
-            print(f"[Error reading history]: {e}")
+    raw_history = _read_history_file()
 
     for item in raw_history[-10:]:
         role = (
@@ -221,10 +234,7 @@ async def process_npc_chat(user_text: str):
 
     save_to_history("ai", ai_text)
 
-    emotion = "neutral"
-    match = re.search(r"\[(.*?)\]", ai_text)
-    if match:
-        emotion = match.group(1)
+    emotion = extract_emotion(ai_text, default="neutral")
 
     audio_path = generate_audio_elevenlabs(ai_text, VOICE_NPC, prefix="npc")
 
