@@ -12,20 +12,24 @@ public class ChatMessageItem : MonoBehaviour
 
     public void Setup(string role, string text)
     {
-        string speakerName = (role == "USER") ? "Hr·Ë" : "Eliöka (AI)";
+        // Porovn·v·me bez ohledu na velk·/mal· pÌsmena
+        bool isPlayer = role.Equals("Player", System.StringComparison.OrdinalIgnoreCase) ||
+                        role.Equals("user", System.StringComparison.OrdinalIgnoreCase) ||
+                        role.Equals("USER", System.StringComparison.OrdinalIgnoreCase);
+
+        string speakerName = isPlayer ? "Hr·Ë" : "Eliöka (AI)";
 
         messageText.text = $"<b>{speakerName}</b> {text}";
 
-        if (role == "USER")
+        if (isPlayer)
         {
             background.color = playerChatColor;
-            messageText.alignment = TextAlignmentOptions.Left;
+            messageText.alignment = TextAlignmentOptions.Right; 
         }
         else
         {
             background.color = npcChatColor;
             messageText.alignment = TextAlignmentOptions.Left;
         }
-
     }
 }
