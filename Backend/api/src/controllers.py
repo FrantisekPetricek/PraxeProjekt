@@ -19,12 +19,13 @@ load_dotenv()
 HISTORY_FILE = "chat_history.json"
 TEMP_DIR = "temp"
 MAX_TEMP_FILES = 2
+MAX_HISTORY_LENGTH = 20
 
 # --- API Klienti a Diagnostika ---
 groq_api_key = os.getenv("GROQ_API_KEY")
 eleven_api_key = os.getenv("ELEVENLABS_API_KEY")
 
-print(f" DIAGNOSTIKA KLÍČŮ:")
+print(" DIAGNOSTIKA KLÍČŮ:")
 print(f"   Groq Key: {'Nalezen' if groq_api_key else ' CHYBÍ!'}")
 print(f"   ElevenLabs Key: {'Nalezen' if eleven_api_key else ' CHYBÍ!'}")
 
@@ -149,6 +150,11 @@ def save_to_history(role: str, content: str):
         {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
     )
 
+    if len(data) > MAX_HISTORY_LENGTH:
+        # Necháme si jen posledních X prvků (slicing)
+        data = data[-MAX_HISTORY_LENGTH:]
+    
+    # 4. Uložení zpět do souboru
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
