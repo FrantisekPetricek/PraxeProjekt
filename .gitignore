@@ -17,7 +17,7 @@ Backend/chat_history.json
 Backend/api/DLL/
 Backend/api/whisper_cache/
 Backend/api/src/chat_history.json
-
+Backend/api/src/temp
 # Docker
 .docker/
 

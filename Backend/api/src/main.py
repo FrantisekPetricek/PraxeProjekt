@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
+import os
 from routers import router
 
 app = FastAPI(docs_url="/", version="1.0", title="Voice Generator API")
+
+os.makedirs("temp", exist_ok=True)
+app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
 origins = ["http://localhost", "http://localhost:8000"]
 app.add_middleware(

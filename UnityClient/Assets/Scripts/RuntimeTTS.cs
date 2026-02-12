@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -14,7 +13,6 @@ public class RuntimeTTS : MonoBehaviour
     private EyeContact playerEyeController;
     private EyeContact npcEyeController;
     private EmotionController emotionHandler;
-
 
     [Header("UI")]
     private SubtitleManager subtitleManager;
@@ -31,29 +29,19 @@ public class RuntimeTTS : MonoBehaviour
     public string npcName = "Eliška";
 
     [Header("Server API")]
-    private string urlPlayerTTS;     
-    private string urlChatStream;    
+    private string urlPlayerTTS;  // http://localhost:8000/tts
+    private string urlChat;       // http://localhost:8000/chat
 
     [Header("Input")]
     public KeyCode recordKey;
 
-    // Spotlighty
+    // Spotlighty (vizuální efekt kdo mluví)
     private Spotlight npcSpotlight;
     private Spotlight playerSpotlight;
 
     private bool isProcessing = false;
 
-    // --- STREAMING & PARSING STRUKTURY ---
-
-    // Stavy parseru pro čtení binárního streamu
-    private enum ParseState { ReadTextLen, ReadText, ReadAudioLen, ReadAudio }
-    private ParseState currentState = ParseState.ReadTextLen;
-    private int bytesToRead = 4; // Na začátku vždy čekáme 4 byty (int)
-    private string tempTextBuffer = ""; // Dočasné úložiště pro text věty
-    private string tempEmotionBuffer = ""; // Dočasné úložiště pro emoci věty
-
-
-    // Struktura jedné věty (text + audio)
+    // --- STRUKTURY PRO FRONTU ---
     private class DialogueSegment
     {
         public string text;
@@ -61,66 +49,63 @@ public class RuntimeTTS : MonoBehaviour
         public AudioClip clip;
     }
 
-    
-    // Fronta vět k přehrání
     private Queue<DialogueSegment> dialogueQueue = new Queue<DialogueSegment>();
-    private bool isPlayingQueue = false;
-
-    // --- API DATOVÉ TYPY ---
+    
+    // --- DATOVÉ TYPY PRO API ---
     [System.Serializable]
     public class RequestData
     {
-        public string text;
-        public string emotion;
-        public string user_question;
+        public string text;          // Pro /tts
+        public string user_question; // Pro /chat
     }
 
     [System.Serializable]
-    public class TTSResponse
+    public class CloudResponse
     {
-        public string status;
-        public string audio_url;
+        public string text;       // Text odpovědi AI
+        public string audio_url;  // Cesta k MP3 (např. "temp/npc_123.mp3")
+        public string emotion;    // Emoce (např. "happy")
     }
 
-    
     private void Start()
     {
+        // 1. Najdeme manažery
+        var managers = GameObject.Find("Managers");
+        if (managers)
+        {
+            sttManager = managers.GetComponent<STTManager>();
+            emotionHandler = managers.GetComponent<EmotionController>();
+            subtitleManager = managers.GetComponent<SubtitleManager>();
+        }
 
-        // Managers
-        sttManager = GameObject.Find("Managers").GetComponent<STTManager>();
-        emotionHandler = GameObject.Find("Managers").GetComponent<EmotionController>();
-        subtitleManager = GameObject.Find("Managers").GetComponent<SubtitleManager>();
+        // 2. Najdeme komponenty na postavách
+        if (player)
+        {
+            playerEyeController = player.GetComponentInChildren<EyeContact>();
+            playerAudioSource = player.GetComponentInChildren<AudioSource>();
+            playerSpotlight = player.GetComponent<Spotlight>();
+        }
 
-        //Player
-        playerEyeController = player.GetComponentInChildren<EyeContact>();
-        playerAudioSource = player.GetComponentInChildren<AudioSource>();
+        if (npc)
+        {
+            npcEyeController = npc.GetComponentInChildren<EyeContact>();
+            npcAudioSource = npc.GetComponentInChildren<AudioSource>();
+            npcSpotlight = npc.GetComponent<Spotlight>();
+        }
 
-        //NPC
-        npcEyeController = npc.GetComponentInChildren<EyeContact>();
-        npcAudioSource = npc.GetComponentInChildren<AudioSource>();
-
-
-        // 1. Načtení konfigurace
+        // 3. Načtení URL z Configu
         if (ConfigLoader.config != null)
         {
             urlPlayerTTS = ConfigLoader.GetUrl(ConfigLoader.config.ttsEndpoint);
-            urlChatStream = ConfigLoader.GetUrl(ConfigLoader.config.chatRealTime);      
-            //urlChatStream = ConfigLoader.GetUrl(ConfigLoader.config.chatStreamEndpoint);
+            urlChat = ConfigLoader.GetUrl(ConfigLoader.config.chatRealTime);
             recordKey = ConfigLoader.talkKey;
         }
 
-        if (player) playerSpotlight = player.GetComponent<Spotlight>();
-        if (npc) npcSpotlight = npc.GetComponent<Spotlight>();
-
-        // 2. Setup STT Eventů
+        // 4. Navázání STT Eventů
         if (sttManager != null)
         {
-            sttManager.OnRecordingStart += () => {
-                if (subtitleManager) subtitleManager.ShowSubtitleStatic("<i>(Nahrávám...)</i>");
-            };
-            sttManager.OnError += (msg) => {
-                if (subtitleManager) subtitleManager.ShowSubtitleStatic($"<color=red>Chyba: {msg}</color>");
-            };
+            sttManager.OnRecordingStart += () => { if (subtitleManager) subtitleManager.ShowSubtitleStatic("<i>(Nahrávám...)</i>"); };
+            sttManager.OnError += (msg) => { if (subtitleManager) subtitleManager.ShowSubtitleStatic($"<color=red>Chyba: {msg}</color>"); };
             sttManager.OnTranscriptionComplete += HandleVoiceInput;
         }
     }
@@ -130,17 +115,12 @@ public class RuntimeTTS : MonoBehaviour
         if (sttManager != null) sttManager.OnTranscriptionComplete -= HandleVoiceInput;
     }
 
-    public void ShowSubtitle(string speaker, string message)
-    {
-        if (subtitleManager != null)
-            subtitleManager.ShowSubtitleStatic($"<b>{speaker}:</b> {message}");
-    }
-
+    // --- UPDATE (VSTUPY) ---
     void Update()
     {
         if (isProcessing) return;
 
-        // Textový vstup (Enter)
+        // A) Textový vstup (Enter)
         if (Input.GetKeyDown(KeyCode.Return) && playerInput && !string.IsNullOrWhiteSpace(playerInput.text))
         {
             string text = playerInput.text;
@@ -148,7 +128,7 @@ public class RuntimeTTS : MonoBehaviour
             StartCoroutine(ConversationSequence(text));
         }
 
-        // Hlasový vstup (Klávesa)
+        // B) Hlasový vstup (Držení klávesy)
         if (sttManager != null)
         {
             if (Input.GetKeyDown(recordKey)) sttManager.StartRecording();
@@ -162,445 +142,212 @@ public class RuntimeTTS : MonoBehaviour
         StartCoroutine(ConversationSequence(recognizedText));
     }
 
-    // --- HLAVNÍ LOGIKA KONVERZACE ---
+    // =================================================================================
+    // HLAVNÍ LOGIKA KONVERZACE
+    // =================================================================================
     IEnumerator ConversationSequence(string text)
     {
         isProcessing = true;
 
-        // --- 1. HRÁČ MLUVÍ (Optimalizovaný TTS request - přímo do RAM) ---
+        // ---------------------------------------------------------
+        // 1. HRÁČ MLUVÍ (TTS)
+        // ---------------------------------------------------------
+        if (subtitleManager) subtitleManager.SetSubtitleText($"<b>{playerName}:</b> {text}");
+        if (playerEyeController) playerEyeController.SetTalkingState(true);
 
-        if (subtitleManager)
-        {
-            subtitleManager.SetSubtitleText($"<b>{playerName}:</b> {text}");
-        }
-
-        if (playerEyeController)
-            playerEyeController.SetTalkingState(true);
-
-        // Příprava JSON dat
+        // Pošleme text na /tts endpoint a čekáme na MP3
         string ttsJson = JsonUtility.ToJson(new RequestData { text = text });
 
         using (UnityWebRequest req = new UnityWebRequest(urlPlayerTTS, "POST"))
         {
-            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(ttsJson);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(ttsJson);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
 
-            // Očekávej Audio (WAV)
-            req.downloadHandler = new DownloadHandlerAudioClip(urlPlayerTTS, AudioType.WAV);
+            // DŮLEŽITÉ: ElevenLabs vrací MP3 -> AudioType.MPEG
+            req.downloadHandler = new DownloadHandlerAudioClip(urlPlayerTTS, AudioType.MPEG);
             req.SetRequestHeader("Content-Type", "application/json");
 
-            // Odešleme a čekáme
             yield return req.SendWebRequest();
 
             if (req.result == UnityWebRequest.Result.Success)
             {
-                // Vytáhneme Audio Clip přímo z odpovědi (z paměti)
                 AudioClip clip = DownloadHandlerAudioClip.GetContent(req);
-
                 if (clip != null)
                 {
-                    if (playerSpotlight)
-                        playerSpotlight.ChangeColorToTarget();
-
-                    // Přiřadíme a přehrajeme
+                    if (playerSpotlight) playerSpotlight.ChangeColorToTarget();
                     playerAudioSource.clip = clip;
                     playerAudioSource.Play();
 
-                    // Čekáme na dokončení audia hráče
-                    yield return new WaitForSeconds(clip.length);
-                    yield return new WaitForSeconds(0.2f); // Malá pauza pro přirozenost
+                    // Čekáme, dokud hráč nedomluví
+                    yield return new WaitForSeconds(clip.length + 0.2f);
 
-                    if (playerSpotlight)
-                        playerSpotlight.ResetColor();
+                    if (playerSpotlight) playerSpotlight.ResetColor();
                 }
             }
             else
             {
-                Debug.LogError($"[TTS Player Error]: {req.error} - {req.downloadHandler.text}");
+                Debug.LogError($"[TTS Player Error]: {req.error}");
             }
         }
 
         // Úklid po hráči
-        if (subtitleManager != null)
-            subtitleManager.HideSubtitles();
-
-        if (playerEyeController)
-            playerEyeController.SetTalkingState(false);
+        if (subtitleManager) subtitleManager.HideSubtitles();
+        if (playerEyeController) playerEyeController.SetTalkingState(false);
 
 
-        // --- 2. NPC ODPOVÍDÁ (Smart Streaming - beze změny) ---
-        ShowSubtitle("System", "<i>(NPC přemýšlí...)</i>");
+        // ---------------------------------------------------------
+        // 2. NPC PŘEMÝŠLÍ A ODPOVÍDÁ (CHAT)
+        // ---------------------------------------------------------
+        if (subtitleManager) subtitleManager.ShowSubtitleStatic("<i>(NPC přemýšlí...)</i>");
 
         if (npcSpotlight) npcSpotlight.ChangeColorToTarget();
         if (npcEyeController) npcEyeController.SetTalkingState(true);
+        if (emotionHandler) emotionHandler.SetEmotion("neutral"); // Reset emocí
 
-        if (emotionHandler != null)
-            emotionHandler.SetEmotion("neutral");
+        // Voláme logiku pro získání odpovědi a audia
+        yield return StartCoroutine(HandleNPCChat(text));
 
-        // Spustíme streamování a čekáme na dokončení
-        yield return StartCoroutine(StreamChatAudio(text));
-
-        // Úklid po dokončení NPC
-        if (npcEyeController)
-            npcEyeController.SetTalkingState(false);
-
-        if (npcSpotlight)
-            npcSpotlight.ResetColor();
-
-        if (subtitleManager != null)
-            subtitleManager.HideSubtitles();
-
-        if (emotionHandler != null)
-            emotionHandler.SetEmotion("neutral");
+        // Úklid po NPC
+        if (npcEyeController) npcEyeController.SetTalkingState(false);
+        if (npcSpotlight) npcSpotlight.ResetColor();
+        if (subtitleManager) subtitleManager.HideSubtitles();
+        if (emotionHandler) emotionHandler.SetEmotion("neutral");
 
         isProcessing = false;
         RefreshChatHistory();
     }
 
-    IEnumerator StreamChatAudio(string question)
+    // =================================================================================
+    // LOGIKA PRO NPC (JSON -> URL -> AUDIO)
+    // =================================================================================
+    IEnumerator HandleNPCChat(string question)
     {
-        // Reset stavu parseru před novým streamem
-        currentState = ParseState.ReadTextLen;
-        bytesToRead = 4;
-        tempTextBuffer = "";
-        tempEmotionBuffer = "";
-        dialogueQueue.Clear();
-        List<byte> streamBuffer = new List<byte>();
-
         string jsonBody = JsonUtility.ToJson(new RequestData { user_question = question });
-        byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
 
-        using (UnityWebRequest req = new UnityWebRequest(urlChatStream, "POST"))
+        // KROK A: Pošleme dotaz na /chat a získáme JSON s odkazem na audio
+        using (UnityWebRequest req = new UnityWebRequest(urlChat, "POST"))
         {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            req.downloadHandler = new DownloadHandlerBuffer();
+            req.downloadHandler = new DownloadHandlerBuffer(); // Tady stahujeme text (JSON)
             req.SetRequestHeader("Content-Type", "application/json");
 
-            var operation = req.SendWebRequest();
-            int processedBytes = 0;
+            yield return req.SendWebRequest();
 
-            while (!operation.isDone)
+            if (req.result == UnityWebRequest.Result.Success)
             {
-                // Kontrola proti pádu (NullReferenceException)
-                if (req.downloadHandler != null && req.downloadHandler.data != null)
+                // Parsujeme odpověď: { "text": "...", "audio_url": "temp/...", "emotion": "..." }
+                CloudResponse response = JsonUtility.FromJson<CloudResponse>(req.downloadHandler.text);
+
+                if (response != null && !string.IsNullOrEmpty(response.audio_url))
                 {
-                    byte[] allData = req.downloadHandler.data;
+                    // KROK B: Sestavíme plnou URL pro stažení souboru
+                    // Backend vrací relativní cestu "temp/neco.mp3", musíme přidat "http://localhost:8000/"
+                    string fullAudioUrl = response.audio_url;
 
-                    if (allData.Length > processedBytes)
+                    if (!fullAudioUrl.StartsWith("http"))
                     {
-                        // Máme nová data
-                        int newBytesCount = allData.Length - processedBytes;
-                        byte[] newChunk = new byte[newBytesCount];
-                        Array.Copy(allData, processedBytes, newChunk, 0, newBytesCount);
+                        // Získáme base URL z urlChat (např. http://localhost:8000)
+                        try
+                        {
+                            var uri = new Uri(urlChat);
+                            string baseUrl = $"{uri.Scheme}://{uri.Authority}";
+                            fullAudioUrl = $"{baseUrl}/{response.audio_url}";
+                        }
+                        catch
+                        {
+                            Debug.LogError("Chyba při parsování URL.");
+                        }
+                    }
 
-                        // Pošleme data do parseru
-                        ProcessSmartStream(newChunk, ref streamBuffer);
-                        processedBytes = allData.Length;
+                    // KROK C: Stáhneme samotný MP3 soubor
+                    using (UnityWebRequest audioReq = UnityWebRequestMultimedia.GetAudioClip(fullAudioUrl, AudioType.MPEG))
+                    {
+                        yield return audioReq.SendWebRequest();
+
+                        if (audioReq.result == UnityWebRequest.Result.Success)
+                        {
+                            AudioClip clip = DownloadHandlerAudioClip.GetContent(audioReq);
+
+                            // Vložíme do fronty (aby se přehrálo)
+                            dialogueQueue.Clear();
+                            dialogueQueue.Enqueue(new DialogueSegment
+                            {
+                                text = response.text,
+                                emotion = response.emotion,
+                                clip = clip
+                            });
+
+                            // Spustíme přehrávání
+                            yield return StartCoroutine(PlayDialogueQueue());
+                        }
+                        else
+                        {
+                            Debug.LogError($"Chyba stahování audia z cloudu: {audioReq.error} | URL: {fullAudioUrl}");
+                            if (subtitleManager) subtitleManager.ShowSubtitleStatic("<color=red>Chyba stahování hlasu.</color>");
+                        }
                     }
                 }
-
-                // Pokud máme připravenou větu ve frontě, začneme ji hrát
-                if (!isPlayingQueue && dialogueQueue.Count > 0)
-                {
-                    StartCoroutine(PlayDialogueQueue());
-                }
-
-                yield return null;
-            }
-
-            if (req.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError($"Stream Error: {req.error}");
-                ShowSubtitle("System", "<color=red>Chyba spojení s AI.</color>");
             }
             else
             {
-                // Zpracování posledního kousku dat
-                if (req.downloadHandler != null && req.downloadHandler.data != null)
-                {
-                    byte[] finalData = req.downloadHandler.data;
-                    if (finalData.Length > processedBytes)
-                    {
-                        byte[] newChunk = new byte[finalData.Length - processedBytes];
-                        Array.Copy(finalData, processedBytes, newChunk, 0, newChunk.Length);
-                        ProcessSmartStream(newChunk, ref streamBuffer);
-                    }
-                }
-            }
-        }
-
-        // Čekáme, dokud NPC nedomluví všechno z fronty
-        while (isPlayingQueue || dialogueQueue.Count > 0)
-        {
-            if (!isPlayingQueue && dialogueQueue.Count > 0) StartCoroutine(PlayDialogueQueue());
-            yield return null;
-        }
-
-        if (subtitleManager != null)
-        {
-            subtitleManager.HideSubtitles();
-        }
-    }
-
-    // --- PARSER STAVOVÉHO AUTOMATU ---
-    // Očekávaný formát: [4B Délka Textu] -> [JSON Text] -> [4B Délka Audia] -> [WAV Data]
-    // Upravený parser pro flexibilní stream
-    // DEBUG VERZE PARSERU
-    private void ProcessSmartStream(byte[] newChunk, ref List<byte> buffer)
-    {
-        // Výpis, že dorazila data ze sítě
-        
-        buffer.AddRange(newChunk);
-        bool dataProcessed = true;
-        int safetyLoop = 0; // Pojistka proti nekonečné smyčce
-
-        while (dataProcessed && safetyLoop < 100)
-        {
-            safetyLoop++;
-            dataProcessed = false;
-
-            // KROK 1: Čtení délky textu
-            if (currentState == ParseState.ReadTextLen)
-            {
-                if (buffer.Count >= 4)
-                {
-                    byte[] lenBytes = buffer.GetRange(0, 4).ToArray();
-                    if (BitConverter.IsLittleEndian) Array.Reverse(lenBytes);
-                    bytesToRead = BitConverter.ToInt32(lenBytes, 0);
-
-                    buffer.RemoveRange(0, 4);
-
-                    
-                    if (bytesToRead == 0)
-                    {
-                        currentState = ParseState.ReadAudioLen;
-                        bytesToRead = 4;
-                    }
-                    else
-                    {
-                        currentState = ParseState.ReadText;
-                    }
-                    dataProcessed = true;
-                }
-            }
-            // KROK 2: Čtení samotného textu
-            else if (currentState == ParseState.ReadText)
-            {
-                if (buffer.Count >= bytesToRead)
-                {
-                    byte[] textBytes = buffer.GetRange(0, bytesToRead).ToArray();
-                    string jsonString = Encoding.UTF8.GetString(textBytes);
-
-                    string newText = "";
-                    try
-                    {
-                        var data = JsonUtility.FromJson<RequestData>(jsonString);
-                        if (!string.IsNullOrEmpty(data.text))
-                        {
-                            tempTextBuffer = data.text; // Čistý text pro titulky
-                        }
-                        
-                        // Zde si uložíme emoci přímo z JSONu (už žádný regex v C#)
-                        if (!string.IsNullOrEmpty(data.emotion))
-                        {
-                            tempEmotionBuffer = data.emotion;
-                        }
-                    }
-                    catch 
-                    { 
-                        newText = jsonString; }
-
-                    ExtractEmotionAndText(newText, out string cleanText, out string foundEmotion);
-
-                    // Jen si text uložíme, aby se přidal k následujícímu audiu
-                    if (!string.IsNullOrEmpty(newText))
-                    {
-                        tempTextBuffer = cleanText;
-                        tempEmotionBuffer = foundEmotion;       
-                    }
-
-                    buffer.RemoveRange(0, bytesToRead);
-
-                    currentState = ParseState.ReadAudioLen;
-                    bytesToRead = 4;
-                    dataProcessed = true;
-                }
-            }
-
-            // ... (zbytek kódu dole) ...
-            // KROK 3: Čtení délky audia
-            else if (currentState == ParseState.ReadAudioLen)
-            {
-                if (buffer.Count >= 4)
-                {
-                    byte[] lenBytes = buffer.GetRange(0, 4).ToArray();
-                    if (BitConverter.IsLittleEndian) Array.Reverse(lenBytes);
-                    int audioLen = BitConverter.ToInt32(lenBytes, 0);
-
-                    buffer.RemoveRange(0, 4);
-
-                    if (audioLen == 0)
-                    {
-                        currentState = ParseState.ReadTextLen;
-                        bytesToRead = 4;
-                    }
-                    else
-                    {
-                        bytesToRead = audioLen;
-                        currentState = ParseState.ReadAudio;
-                    }
-                    dataProcessed = true;
-                }
-            }
-            // KROK 4: Čtení audia
-            else if (currentState == ParseState.ReadAudio)
-            {
-                if (buffer.Count >= bytesToRead)
-                {
-                    byte[] audioData = buffer.GetRange(0, bytesToRead).ToArray();
-                    
-                    // Tady použijeme SimpleWav nebo WavUtility
-                    // Pokud nemáš SimpleWav, použij WavUtility, ale zkontroluj výsledek!
-                    AudioClip clip = SimpleWav.ToAudioClip(audioData);
-
-                    if (clip != null)
-                    {
-                        dialogueQueue.Enqueue(new DialogueSegment
-                        {
-                            text = tempTextBuffer,
-                            emotion = tempEmotionBuffer,
-                            clip = clip
-                        });
-
-                        // Nakopneme přehrávání
-                        if (!isPlayingQueue)
-                        {
-                            StartCoroutine(PlayDialogueQueue());
-                        }
-                    }
-                    else
-                    {
-                        Debug.LogError($"<color=red>[PARSER] CHYBA: AudioClip je NULL! Hlavička: {BitConverter.ToString(audioData, 0, min(10, audioData.Length))}</color>");
-                    }
-
-                    buffer.RemoveRange(0, bytesToRead);
-
-                    currentState = ParseState.ReadTextLen;
-                    bytesToRead = 4;
-                    tempTextBuffer = "";
-                    tempEmotionBuffer = "";
-                    dataProcessed = true;
-                }
+                Debug.LogError($"Chat API Error: {req.error} | {req.downloadHandler.text}");
+                if (subtitleManager) subtitleManager.ShowSubtitleStatic("<color=red>Chyba komunikace s AI.</color>");
             }
         }
     }
 
-    private void ExtractEmotionAndText(string rawInput, out string cleanText, out string foundEmotion)
-    {
-        // Regex hledá text v hranatých závorkách: [happy], [sad], [angry]
-        var match = Regex.Match(rawInput, @"\[(.*?)\]");
-
-        if (match.Success)
-        {
-            foundEmotion = match.Groups[1].Value; // Vytáhne text uvnitř, např. "happy"
-            cleanText = rawInput.Replace(match.Value, "").Trim(); // Odstraní tag z věty
-        }
-        else
-        {
-            foundEmotion = ""; // Žádná emoce
-            cleanText = rawInput;
-        }
-    }
-
-    // Pomocná funkce pro bezpečný výpis
-    private int min(int a, int b) => (a < b) ? a : b;
-
-    // --- PŘEHRÁVAČ FRONTY ---
+    // =================================================================================
+    // PŘEHRÁVAČ FRONTY (LIP SYNC + AUDIO + TITULKY)
+    // =================================================================================
     IEnumerator PlayDialogueQueue()
     {
-        isPlayingQueue = true;
-
+        
         while (dialogueQueue.Count > 0)
         {
             DialogueSegment segment = dialogueQueue.Dequeue();
 
-            // --- ZMĚNA: TITULKY ZOBRAZÍME AŽ TEĎ ---
-            // Zobrazíme je synchronizovaně se startem audia
-            if (subtitleManager != null && !string.IsNullOrEmpty(segment.text))
-            {
-                subtitleManager.SetSubtitleText($"<b>{npcName}:</b> {segment.text}");
-            }
-
-            if (emotionHandler != null && !string.IsNullOrEmpty(segment.emotion))
-            {
+            // Nastavíme emoci
+            if (emotionHandler && !string.IsNullOrEmpty(segment.emotion))
                 emotionHandler.SetEmotion(segment.emotion);
-            }
 
+            // Spustíme audio
             if (segment.clip != null)
             {
                 npcAudioSource.clip = segment.clip;
                 npcAudioSource.Play();
 
-                // Čekáme přesně délku klipu (titulky po celou dobu svítí)
+                // --- ZMĚNA PRO TITULKY ---
+                // Místo SetSubtitleText voláme ShowSubtitleSynced s délkou audia
+                if (subtitleManager && !string.IsNullOrEmpty(segment.text))
+                {
+                    // Volitelně vyčistit od [tagů] pokud to nedělá už Python
+                    // string clean = System.Text.RegularExpressions.Regex.Replace(segment.text, @"\[.*?\]", "").Trim();
+
+                    // Předáme text A délku klipu, aby SubtitleManager mohl stránkovat
+                    subtitleManager.ShowSubtitleSynced(segment.text, segment.clip.length);
+                }
+                // -------------------------
+
+                // Čekáme, dokud audio nehraje
                 yield return new WaitForSeconds(segment.clip.length);
 
-                // Malá pauza mezi větami pro přirozenost
+                // Malá pauza
                 yield return new WaitForSeconds(0.1f);
             }
         }
 
-        yield return new WaitForSeconds(0.5f); // Půl vteřiny necháme výraz, aby to neutnul hned
-        if (emotionHandler != null)
-        {
-            emotionHandler.SetEmotion("neutral");
-        }
+        yield return new WaitForSeconds(0.5f);
+        if (emotionHandler) emotionHandler.SetEmotion("neutral");
 
-        // Když fronta dojede, skryjeme titulky (volitelné, nebo je tam nechat viset)
-        /* if (subtitleManager != null) 
-        {
-             subtitleManager.HideSubtitles();
-        }
-        */
+        // Skryjeme titulky, až vše skončí
+        if (subtitleManager) subtitleManager.HideSubtitles();
 
-        isPlayingQueue = false;
     }
 
-    // --- HELPERY PRO HTTP ---
-    IEnumerator SendPostRequest(string url, string json, System.Action<string> onSuccess = null)
-    {
-        using (UnityWebRequest req = new UnityWebRequest(url, "POST"))
-        {
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
-            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("Content-Type", "application/json");
-            yield return req.SendWebRequest();
-            if (req.result == UnityWebRequest.Result.Success) onSuccess?.Invoke(req.downloadHandler.text);
-            else Debug.LogError($"API Error: {req.error}");
-        }
-    }
-
-    IEnumerator DownloadAndPlayUrl(string url, AudioSource source)
-    {
-        // Pozor: Zde používáme AudioType.WAV, protože XTTS vrací WAV
-        using (UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.WAV))
-        {
-            yield return www.SendWebRequest();
-            if (www.result == UnityWebRequest.Result.Success)
-            {
-                AudioClip clip = DownloadHandlerAudioClip.GetContent(www);
-                source.clip = clip;
-
-            }
-            else
-            {
-                Debug.LogError($"Chyba stahování audia hráče: {www.error}");
-            }
-        }
-    }
     private void RefreshChatHistory()
     {
-        FindFirstObjectByType<ChatUIWindow>().RefreshHistory();
+        var chatUI = FindFirstObjectByType<ChatUIWindow>();
+        if (chatUI) chatUI.RefreshHistory();
     }
-
 }

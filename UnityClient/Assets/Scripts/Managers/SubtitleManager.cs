@@ -10,7 +10,7 @@ public class SubtitleManager : MonoBehaviour
     public GameObject subtitlePanel; 
 
     [Header("Settings")]
-    public int maxCharSize = 250;
+    public int maxCharSize = 200;
     public float defaultDuration = 3.0f; 
 
     private void Awake()
