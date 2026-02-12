@@ -1,18 +1,12 @@
 [project]
 name = "voicegeneratorlocal"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI asistent backend"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "elevenlabs>=2.29.0",
     "fastapi>=0.123.5",
-    "faster-whisper>=1.2.1",
-    "google-generativeai>=0.8.5",
-    "groq>=1.0.0",
     "httpx>=0.28.1",
-    "nvidia-cublas-cu12>=12.9.1.4 ; sys_platform == 'linux'",
-    "nvidia-cudnn-cu12>=9.18.0.77 ; sys_platform == 'linux'",
     "ollama>=0.6.1",
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.1",

@@ -9,24 +9,8 @@ services:
     volumes:
       # 1. Propojíme složku s vygenerovaným audiem ven, aby se neztratilo
       - ../api/src:/app
-      - ../api/whisper_cache:/whisper_cache
-      
     env_file:
       - ../.env
 
     restart: unless-stopped
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-      

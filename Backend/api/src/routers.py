@@ -6,7 +6,7 @@ import os
 import uuid
 
 from controllers import (
-    transcribe_audio,
+    transcribe_audio_remote,
     get_chat_history,
     delete_history,
     stream_ai_realtime,
@@ -36,12 +36,13 @@ async def endpoint_stt_file(file: UploadFile = File(...)):
     Přepis audia ze souboru (Whisper).
     """
     temp_filename = f"temp_{uuid.uuid4()}.wav"
+    
     try:
         with open(temp_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        text = transcribe_audio(temp_filename)
-        return {"status": "success", "text": text}
+        text = await transcribe_audio_remote(temp_filename)
+        return {"text": text}
     finally:
         if os.path.exists(temp_filename):
             os.remove(temp_filename)

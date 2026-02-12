@@ -5,9 +5,7 @@ import re
 import httpx
 import ollama
 import struct
-import numpy as np
 from dotenv import load_dotenv
-from faster_whisper import WhisperModel
 from models.model import HistoryResponse, ChatMessage
 from fastapi.responses import JSONResponse
 
@@ -19,11 +17,11 @@ HISTORY_FILE = os.path.join(BASE_DIR, "chat_history.json")
 DLL_FOLDER = os.path.join(BASE_DIR, "DLL")
 
 # 1. OLLAMA
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://192.168.37.29:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 # qwen3:8b
 # 2. XTTS
-TTS_API_URL = os.getenv("TTS_API_URL", "http://192.168.37.29:8020")
+TTS_API_URL = os.getenv("TTS_API_URL")
 XTTS_LANGUAGE = os.getenv("XTTS_LANGUAGE", "cs")
 # Cesty k referenčním wav souborům (absolutní cesty v kontejneru TTS nebo relativní, dle tvého setupu)
 VOICE_ID_AI = os.getenv(
@@ -34,11 +32,8 @@ VOICE_ID_PLAYER = os.getenv(
 )  # male
 
 # 3. WHISPER
-MODEL_SIZE = os.getenv("MODEL_SIZE", "medium")
-DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
-COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
-MODEL_CACHE_PATH = "/whisper_cache"
-
+WHISPER_API_URL = os.getenv("WHISPER_API_URL")
+MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "medium")
 # Načtení DLL pro Windows (pokud je třeba)
 if os.name == "nt" and os.path.exists(DLL_FOLDER):
     try:
@@ -113,54 +108,46 @@ def extract_emotion_and_clean(text):
     return found_emotion, clean_text
 
 
-# --- WHISPER (STT) ---
 
-whisper_model = None
+async def transcribe_audio_remote(file_path: str, model_size: str = MODEL_SIZE) -> str:
+    """
+    Odešle audio soubor na server s FasterWhisper a vrátí text audia.
+    """
 
-
-def get_whisper_model():
-    global whisper_model
-    if whisper_model is not None:
-        return whisper_model
-
-    print(f"Načítám STT Whisper model '{MODEL_SIZE}' na {DEVICE}...")
-    try:
-        model = WhisperModel(
-            MODEL_SIZE,
-            device=DEVICE,
-            compute_type=COMPUTE_TYPE,
-            download_root=MODEL_CACHE_PATH,
-        )
-        # Warmup
-        dummy_audio = np.zeros(16000, dtype=np.float32)
-        model.transcribe(dummy_audio, beam_size=1)
-        whisper_model = model
-        return whisper_model
-    except Exception as e:
-        print(f"Chyba GPU Whisper: {e}. Přepínám na CPU.")
-        try:
-            return WhisperModel("medium", device="cpu", compute_type="int8")
-        except Exception as e_cpu:
-            print(f"Chyba CPU Whisper: {e_cpu}")
-            return None
-
-
-whisper_model = get_whisper_model()
-
-
-def transcribe_audio(file_path: str) -> str:
-    """Přepis audia na text pomocí Whisper."""
-    if whisper_model is None:
+    if not os.path.exists(file_path):
+        print(f"Chyba: Soubor {file_path} neexistuje.")
         return ""
-    try:
-        segments, _ = whisper_model.transcribe(
-            file_path, language="cs", beam_size=2, vad_filter=True
-        )
-        return " ".join([segment.text for segment in segments]).strip()
-    except Exception as e:
-        print(f"Chyba při přepisu: {e}")
-        return ""
+    print(f"Odesílám audio na Whiper Server: {WHISPER_API_URL}")
 
+    try:
+        async with httpx.AsyncClient() as client:
+            with open(file_path, "rb") as f:
+
+                files = {"file": (os.path.basename(file_path), f, "audio/wav")}
+
+                params = {"modlel_size": model_size}
+
+                response = await client.post(
+                    WHISPER_API_URL, files=files, params=params, timeout=60
+                ) 
+
+                if response.status_code == 200:
+                    data = response.json()
+                    text = data.get("text", "").strip()
+                    duration = data.get("duration", 0)
+                    print(f"Přepis hotov ({duration}s): {text[:50]}")
+                    return text
+                else:
+                    print(f"Chyba pri odesílání audio na Whiper Server: {response.status_code} -  {response.text}")
+                    return ""
+
+    except httpx.ConnectError:
+        print(f"Nelze se připojit na Whiper Server: {WHISPER_API_URL}.")
+        return ""
+    except Exception as e:
+        print(f"Chyba pri odesílání audio na Whiper Server: {e}")
+        return ""
+    
 
 # --- TTS FUNCTIONS ---
 
