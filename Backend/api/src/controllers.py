@@ -6,8 +6,7 @@ import re
 import glob
 from datetime import datetime
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from typing import List
+from models.model import ChatMessage, HistoryResponse
 
 # Cloud API
 from groq import Groq
@@ -44,17 +43,6 @@ WHISPER_API_URL = os.getenv("WHISPER_API_URL", "http://whisper_gpu:8000/transcri
 
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-
-# --- DATOVÉ MODELY ---
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class HistoryResponse(BaseModel):
-    messages: List[ChatMessage]
-
-
 # --- SYSTEM PROMPT ---
 SYSTEM_PROMPT = (
     "Jsi Eliška, česká virtuální asistentka. Jsi přátelská, empatická a stručná. Jsi žena, mluv o sobě v ženském rodu\n"
@@ -73,10 +61,6 @@ SYSTEM_PROMPT = (
     "To zní jako skvělý nápad [happy]! Ráda ti s tím pomohu [neutral].\n"
 )
 
-# ==========================================
-# 1. PRÁCE S HISTORIÍ
-# ==========================================
-
 
 def cleanup_temp_folder(keep_last=MAX_TEMP_FILES):
     """
@@ -89,7 +73,7 @@ def cleanup_temp_folder(keep_last=MAX_TEMP_FILES):
             return
         files.sort(key=os.path.getctime)
 
-        files_to_delete = files[:-keep_last]  # Vezmeme všechny kromě posledních N
+        files_to_delete = files[:-keep_last]
 
         for f in files_to_delete:
             try:
@@ -143,25 +127,18 @@ def save_to_history(role: str, content: str):
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                 content_file = f.read().strip()
                 data = json.loads(content_file if content_file else "[]")
-        except:
-            pass
+        except Exception as e:
+            print(f"[Error reading history]: {e}")
 
     data.append(
         {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
     )
 
     if len(data) > MAX_HISTORY_LENGTH:
-        # Necháme si jen posledních X prvků (slicing)
         data = data[-MAX_HISTORY_LENGTH:]
-    
-    # 4. Uložení zpět do souboru
+
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-# ==========================================
-# 2. TTS GENERÁTOR (ElevenLabs v1.x Update)
-# ==========================================
 
 
 def generate_audio_elevenlabs(text: str, voice_id: str, prefix: str = "tts") -> str:
@@ -172,12 +149,11 @@ def generate_audio_elevenlabs(text: str, voice_id: str, prefix: str = "tts") -> 
     if not clean_text:
         return ""
 
-    print(f"🗣️ TTS ({prefix}): {clean_text[:30]}...")
+    print(f"TTS ({prefix}): {clean_text[:30]}...")
     filename = f"{prefix}_{uuid.uuid4().hex}.mp3"
     output_path = os.path.join(TEMP_DIR, filename)
 
     try:
-        # POUŽITÍ NOVÉ SYNTAXE ELEVENLABS
         audio_generator = eleven_client.text_to_speech.convert(
             text=clean_text,
             voice_id=voice_id,
@@ -185,25 +161,18 @@ def generate_audio_elevenlabs(text: str, voice_id: str, prefix: str = "tts") -> 
             output_format="mp3_44100_128",
         )
 
-        # Uložení streamu do souboru
         with open(output_path, "wb") as f:
             for chunk in audio_generator:
                 f.write(chunk)
 
-        print(f"💾 Audio uloženo: {output_path}")
+        print(f"Audio uloženo: {output_path}")
         return output_path
 
     except Exception as e:
-        print(f"❌ Chyba TTS: {e}")
-        # Detailnější výpis chyby, pokud je to API error
+        print(f"Chyba TTS: {e}")
         if hasattr(e, "body"):
             print(f"   Detail chyby: {e.body}")
         return ""
-
-
-# ==========================================
-# 3. LOGIKA PRO HRÁČE (TTS)
-# ==========================================
 
 
 def process_player_tts(text: str) -> str:
@@ -211,13 +180,7 @@ def process_player_tts(text: str) -> str:
     return generate_audio_elevenlabs(text, VOICE_PLAYER, prefix="player")
 
 
-# ==========================================
-# 4. LOGIKA PRO NPC (AI CHAT)
-# ==========================================
-
-
 async def process_npc_chat(user_text: str):
-    # --- 1. PŘÍPRAVA PROMPTU PRO GROQ ---
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     raw_history = []
@@ -225,8 +188,8 @@ async def process_npc_chat(user_text: str):
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                 raw_history = json.loads(f.read().strip() or "[]")
-        except:
-            pass
+        except Exception as e:
+            print(f"[Error reading history]: {e}")
 
     for item in raw_history[-10:]:
         role = (
@@ -243,8 +206,7 @@ async def process_npc_chat(user_text: str):
 
     messages.append({"role": "user", "content": user_text})
 
-    # --- 2. VOLÁNÍ GROQ ---
-    print(f"🧠 AI Groq přemýšlí...")
+    print("AI Groq přemýšlí")
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -254,38 +216,25 @@ async def process_npc_chat(user_text: str):
         )
         ai_text = completion.choices[0].message.content
     except Exception as e:
-        print(f"❌ Chyba Groq: {e}")
+        print(f"Chyba Groq: {e}")
         ai_text = "Omlouvám se, mám výpadek spojení [sad]."
 
-    # --- 3. ULOŽENÍ ODPOVĚDI (S emocemi pro historii) ---
-    # Do historie to chceme uložit i s [happy], aby si AI pamatovala kontext
     save_to_history("ai", ai_text)
 
-    # --- 4. ZPRACOVÁNÍ EMOCÍ ---
     emotion = "neutral"
     match = re.search(r"\[(.*?)\]", ai_text)
     if match:
         emotion = match.group(1)
 
-    # --- 5. GENERUJE HLAS (NPC) ---
-    # Funkce generate_audio_elevenlabs si text čistí sama interně
     audio_path = generate_audio_elevenlabs(ai_text, VOICE_NPC, prefix="npc")
 
-    # --- 6. PŘÍPRAVA TEXTU PRO UNITY (NOVÉ) ---
-    # Zde text očistíme, aby v titulcích nebylo [happy]
     clean_text_for_unity = clean_text_completely(ai_text)
 
-    # --- 7. NÁVRAT DAT ---
     return {
-        "text": clean_text_for_unity,  # Unity dostane čistý text: "Ahoj!"
+        "text": clean_text_for_unity,
         "audio_url": audio_path,
-        "emotion": emotion,  # Unity dostane emoci zvlášť: "happy"
+        "emotion": emotion,
     }
-
-
-# ==========================================
-# 5. WHISPER (STT)
-# ==========================================
 
 
 async def transcribe_audio_remote(file_path: str) -> str:
@@ -305,5 +254,5 @@ async def transcribe_audio_remote(file_path: str) -> str:
                 )
                 return resp.json().get("text", "")
     except Exception as e:
-        print(f"❌ Chyba STT: {e}")
+        print(f"Chyba STT: {e}")
         return ""

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from models.model import ChatRequest, TTSRequest
 import shutil
 import os
 
@@ -15,17 +15,10 @@ from controllers import (
 
 router = APIRouter()
 
-# Modely
-class PlayerTTSRequest(BaseModel):
-    text: str
-
-class ChatRequest(BaseModel):
-    user_question: str
-
 # --- 1. ENDPOINTY PRO AI & ZVUK ---
 
 @router.post("/tts")
-async def player_tts_endpoint(request: PlayerTTSRequest):
+async def player_tts_endpoint(request: TTSRequest):
     """Hráčův TTS (vrací soubor)"""
     audio_path = process_player_tts(request.text)
     if os.path.exists(audio_path):
