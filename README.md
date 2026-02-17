@@ -1,15 +1,15 @@
 # AI - Voice Assistant
 
-**AI Assistant** je pokročilý hlasový asistent běžící kompletně lokálně (bez cloudu). Projekt kombinuje moderní LLM pro generování textu, neurální sítě pro syntézu řeči (TTS) a rozpoznávání hlasu (STT) s interaktivním 3D avatarem v Unity.
+**AI Assistant** je pokročilý hlasový asistent, jehož backend běží lokálně v Dockeru. Projekt kombinuje moderní LLM pro generování textu, neurální sítě pro syntézu řeči a rozpoznávání hlasu s interaktivním 3D avatarem v Unity.
 
 Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **českým jazykem** a **vyjádřením emocí**.
 
-## Funkce
+## Funkce 
 
-* **LLM :** Využívá **Llama 3.1** (přes Ollama) pro generování inteligentních odpovědí v češtině.
-* **Hlas (TTS):** Real-time syntéza hlasu pomocí **Coqui XTTS v2** (klonování hlasu).
-* **Speach to text:** Rychlý přepis řeči pomocí **Faster-Whisper**.
-* **Asynchronní Jádro:** Backend postavený na **FastAPI** s plnou podporou `async/await` pro paralelní zpracování více uživatelů.
+* **LLM :** Lokální LLM běžící v **Ollama** (např. `llama3.1:latest` podle `.env`).
+* **Hlas (TTS):** Real-time syntéza hlasu pomocí lokální služby **XTTS** (HTTP API).
+* **Speech-to-text (STT):** Rychlý přepis řeči pomocí **Faster-Whisper** běžícího lokálně.
+* **Asynchronní jádro:** Backend postavený na **FastAPI** s plnou podporou `async/await` pro paralelní zpracování více uživatelů.
 * **Unity Frontend:** 3D Avatar s lip-syncem (synchronizace rtů) a animacemi podle emocí z textu.
 
 ## Technologie
@@ -18,10 +18,12 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 * Python, FastAPI, Uvicorn
 * **uv** (moderní package manager)
 
-### AI Modely
-* **LLM:** Llama 3.1:latest
-* **TTS:** XTTS-v2
-* **STT:** Faster-Whisper (Medium)
+### AI modely (tato větev – lokální)
+* **LLM:** model v Ollama (např. `llama3.1:latest`)
+* **TTS:** XTTS (běžící jako samostatná služba, viz `TTS_API_URL`)
+* **STT:** Faster-Whisper (medium)
+
+> V samostatné cloudové větvi projektu se místo Ollama/XTTS používá **Groq (LLM)** a **ElevenLabs (TTS)**. `.env` může obsahovat proměnné pro obě konfigurace, každá větev si vezme jen ty, které skutečně používá.
 
 ### Infrastruktura
 * Docker, Docker Compose
@@ -33,49 +35,21 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 
 ```mermaid
 graph TD
-    
     User((Uživatel))
-
+    Unity[Unity Client]
+    API[FastAPI Backend]
     
-    subgraph Client ["Frontend (Unity)"]
-        Unity[Unity Avatar]
-        InputDecider{"Zvuk / Text"}
-    end
+    Whisper[Faster-Whisper - STT]
+    Ollama[Ollama - AI Mozek]
+    XTTS[XTTS - Hlas]
 
-    User -- "Mluví (Audio)" --> InputDecider
-    User -- "Píše (Text)" --> InputDecider
-    InputDecider --> Unity
-
-    Unity -- "Request" --> API
-
+    %% Tok dat
+    User -- Hlas a Text --> Unity
+    Unity -- HTTP Request --> API
     
-    subgraph Server ["Backend Services"]
-        API[FastAPI Router]
-        
-        CheckInput{"Audio nebo<br/>Text?"}
-        
-        STT["Faster-Whisper<br/>(Audio to Text)"]
-        LLM["Llama 3.1<br/>(Generování odpovědi)"]
-        TTS["Coqui XTTS<br/>(Text to Speech)"]
-    end
-
-    %% --- TOK DAT V BACKENDU ---
-    API --> CheckInput
-    
-    %% Cesta 1: Zvuk
-    CheckInput -- "Je to Zvuk" --> STT
-    STT -- "Přepsaný text" --> LLM
-    
-    %% Cesta 2: Text (přímá)
-    CheckInput -- "Je to Text" --> LLM
-
-    %% Zpracování odpovědi
-    LLM -- "Odpověď (stream po větách)" --> TTS
-    TTS -- "Audio Stream (WAV)" --> API
-
-    %% --- VÝSTUP ZPĚT K UŽIVATELI ---
-    API -- "Audio" --> Unity
-    Unity -- "Synchronizace rtů a Zvuk" --> User
+    API -- Audio WAV --> Whisper
+    API -- Prompt --> Ollama
+    API -- Text odpovedi --> XTTS 
 ```
 
 ## Ukázka 
@@ -88,7 +62,6 @@ graph TD
 ### Požadavky
 * **NVIDIA GPU** (Doporučeno min. 8GB VRAM).
 * **Docker & Docker Compose**.
-* **Ollama** běžící na hostitelském PC (nebo v kontejneru).
 
 ## Struktura projektu
 ```
@@ -100,7 +73,6 @@ graph TD
 │   │   │   ├── main.py           # Vstupní bod serveru (FastAPI app)
 │   │   │   ├── routers.py        # Definice API endpointů
 │   │   │   └── chat_history.json # Ukládání historie konverzace
-│   │   └── whisper_cache/        # Cache pro stažené modely Whisperu
 │   │
 │   ├── docker/                   # Dockerfiles
 │   │
@@ -111,11 +83,26 @@ graph TD
 └── UnityClient/                  # Frontend (Unity 3D projekt)
 ```
 
-Vytvořte soubor `.env` v adresáří backend 
-``` 
+V kořenovém adresáři `Backend` vytvořte soubor `.env` (nejjednodušší je zkopírovat připravený `.env_example`).
+
+PowerShell:
+```powershell
 cd .\Backend\
-cp .\.env_example .env
+Copy-Item .env_example .env
 ```
+Do `.env` souboru bude potřeba doplnit hodnoty pro lokální služby (dle tvého prostředí):
+
+**Lokální konfigurace (tato větev):**
+
+- `OLLAMA_HOST` – URL na Ollama server 
+- `OLLAMA_MODEL` – název modelu v Ollama (např. `llama3.1:latest`)
+- `TTS_API_URL` – URL na XTTS server
+- `XTTS_LANGUAGE` – jazyk, typicky `cs`
+- `VOICE_ID_AI` – cesta k referenčnímu audio souboru pro AI hlas
+- `VOICE_ID_PLAYER` – cesta k referenčnímu audio souboru pro hlas hráče
+- `WHISPER_API_URL` – URL na Faster-Whisper server
+- `WHISPER_MODEL_SIZE` – velikost modelu (např. `medium`)
+
 
 #### Spuštění backendu
 ```{bash}
@@ -129,8 +116,8 @@ Tím se spustí
 
 #### API Endpoints
 
-- `POST /tts` - Dostane text který následně vrátí jako audio stream (WAV)
-- `POST /stt_file` - Převod hlasu na audio (Whisper)
-- `GET /get_history` - Výpis hisotrie  
-- `DELETE /delete_history` - Smazání historie  
-- `POST /chat_realtime` - Komunikace mezi uživatelem a AI pomocí audio streamu  
+- `POST /tts` - Dostane text, který následně vrátí jako audio stream (WAV).
+- `POST /stt_file` - Převod nahraného audio souboru na text (Whisper/Faster-Whisper).
+- `GET /get_history` - Výpis historie konverzace.  
+- `DELETE /delete_history` - Smazání historie.  
+- `POST /chat_realtime` - Realtime komunikace mezi uživatelem a AI pomocí binárního audio streamu (Unity klient).  
