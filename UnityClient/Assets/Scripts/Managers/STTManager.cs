@@ -28,6 +28,17 @@ public class STTManager : MonoBehaviour
         public string status;
         public string text;
     }
+    public void SetMicrophoneDevice(string deviceName)
+    {
+        micName = deviceName;
+        Debug.Log($"[STT] Mikrofon změněn na: {micName}");
+    }
+
+    // Getter pro aktuální mic (pro UI)
+    public string GetCurrentMicrophone()
+    {
+        return micName;
+    }
 
     void Start()
     {
@@ -110,4 +121,31 @@ public class STTManager : MonoBehaviour
             }
         }
     }
+
+    public float GetCurrentVolume()
+    {
+        if (!isRecording || recording == null) return 0f;
+
+        // Kde je zrovna "hlava" nahrávání?
+        int decPosition = Microphone.GetPosition(micName) - 128 + 1;
+        if (decPosition < 0) return 0f;
+
+        // Vezmeme posledních 128 vzorků
+        float[] waveData = new float[128];
+        recording.GetData(waveData, decPosition);
+
+        // Spočítáme průměrnou hlasitost (RMS)
+        float levelMax = 0;
+        for (int i = 0; i < 128; i++)
+        {
+            float wavePeak = waveData[i] * waveData[i];
+            if (levelMax < wavePeak)
+            {
+                levelMax = wavePeak;
+            }
+        }
+
+        return Mathf.Sqrt(levelMax); // Vrací 0 až 1
+    }
+
 }

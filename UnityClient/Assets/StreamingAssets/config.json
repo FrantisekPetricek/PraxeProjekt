@@ -1,9 +1,11 @@
 {
     "apiBaseUrl": "http://127.0.0.1:8000",
-    "ttsEndpoint": "/tts",
-    "sttEndpoint": "/stt_file",
-    "chatRealTime": "/chat_realtime",
-    "chatHistoryEndpoint": "/get_history",
-    "chatHistoryDelete": "/delete_history",
-    "inputKey": "LeftControl"
+    "ttsEndpoint": "http://127.0.0.1:8000/tts",
+    "chatRealTime": "http://127.0.0.1:8000/chat_realtime",
+    "sttEndpoint": "http://127.0.0.1:8000/stt_file",
+    "chatHistoryEndpoint": "http://127.0.0.1:8000/get_history",
+    "chatHistoryDelete": "http://127.0.0.1:8000/delete_history",
+    "stopEndpoint": "http://127.0.0.1:8000/stop_chat",
+    "inputKey": "LeftControl",
+    "stopKey": "Escape"
 }

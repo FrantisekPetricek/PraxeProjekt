@@ -23,8 +23,6 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 * **TTS:** XTTS (běžící jako samostatná služba, viz `TTS_API_URL`)
 * **STT:** Faster-Whisper (medium)
 
-> V samostatné cloudové větvi projektu se místo Ollama/XTTS používá **Groq (LLM)** a **ElevenLabs (TTS)**. `.env` může obsahovat proměnné pro obě konfigurace, každá větev si vezme jen ty, které skutečně používá.
-
 ### Infrastruktura
 * Docker, Docker Compose
 * NVIDIA CUDA 11.8/12.x

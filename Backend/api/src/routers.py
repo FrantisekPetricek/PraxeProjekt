@@ -13,6 +13,7 @@ from controllers import (
     text_to_speech_generator_async,
     VOICE_ID_AI,
     VOICE_ID_PLAYER,
+    request_stop,
 )
 
 router = APIRouter()
@@ -70,3 +71,8 @@ async def endpoint_chat_realtime(request: ChatRequest):
 
     # Vracíme stream
     return StreamingResponse(audio_generator, media_type="application/octet-stream")
+
+@router.post("/stop_chat", tags=["Chat"])
+async def stop_generation():
+    request_id = request_stop()
+    return {"status": "stopped", "request_id": request_id}

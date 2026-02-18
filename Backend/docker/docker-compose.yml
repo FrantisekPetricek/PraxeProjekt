@@ -7,7 +7,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 1. Propojíme složku s vygenerovaným audiem ven, aby se neztratilo
       - ../api/src:/app
     env_file:
       - ../.env
