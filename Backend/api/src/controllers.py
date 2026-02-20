@@ -25,8 +25,12 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 TTS_API_URL = os.getenv("TTS_API_URL")
 XTTS_LANGUAGE = os.getenv("XTTS_LANGUAGE", "cs")
 # Cesty k referenčním wav souborům (absolutní cesty v kontejneru TTS nebo relativní, dle tvého setupu)
-VOICE_ID_AI = os.getenv("VOICE_ID_AI", "/app/speakers/referenceAudioF.wav")  # calm_female
-VOICE_ID_PLAYER = os.getenv("VOICE_ID_PLAYER", "/app/speakers/referenceAudioM.wav")  # male
+VOICE_ID_AI = os.getenv(
+    "VOICE_ID_AI", "/app/speakers/referenceAudioF.wav"
+)  # calm_female
+VOICE_ID_PLAYER = os.getenv(
+    "VOICE_ID_PLAYER", "/app/speakers/referenceAudioM.wav"
+)  # male
 
 # 3. WHISPER
 WHISPER_API_URL = os.getenv("WHISPER_API_URL")
@@ -178,12 +182,11 @@ async def transcribe_audio_remote(file_path: str, model_size: str = MODEL_SIZE) 
     try:
         async with httpx.AsyncClient() as client:
             with open(file_path, "rb") as f:
-
                 files = {"file": (os.path.basename(file_path), f, "audio/wav")}
                 params = {"model_size": model_size}
                 response = await client.post(
                     WHISPER_API_URL, files=files, params=params, timeout=60
-                ) 
+                )
 
                 if response.status_code == 200:
                     data = response.json()
@@ -204,7 +207,7 @@ async def transcribe_audio_remote(file_path: str, model_size: str = MODEL_SIZE) 
     except Exception as e:
         print(f"Chyba při odesílání audia na Whisper server: {e}")
         return ""
-    
+
 
 # --- TTS FUNCTIONS ---
 
@@ -218,6 +221,8 @@ async def text_to_speech_generator_async(text, speaker_wav):
         return
 
     text_for_tts = text.replace(".", "")
+    text_for_tts = text_for_tts.replace("?", "")
+    text_for_tts = text_for_tts.replace("!", "")
     payload = {
         "text": text_for_tts,
         "speaker_wav": speaker_wav,
@@ -283,19 +288,20 @@ def delete_history():
 
 
 async def stream_ai_realtime(user_question, voice_id):
-    global current_request_id 
-    
+    global current_request_id
+
     # 1. Vygenerujeme ID pro tento konkrétní request
     my_request_id = str(uuid.uuid4())
     current_request_id = my_request_id
-    
+
     print(f"[Realtime AI] Dotaz: {user_question} (ID: {my_request_id})")
     t_start_total = time.time()
 
     # Načtení historie (zrychleno - čteme jen pokud je potřeba)
     try:
         history = _read_history_raw()
-    except:
+    except Exception as e:
+        print(f"[History Error]: {e}")
         history = []
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -313,9 +319,8 @@ async def stream_ai_realtime(user_question, voice_id):
     sentence_end_regex = re.compile(r"(?<=[.!?\]])")
 
     print("[Realtime AI] Spouštím streamování odpovědi...")
-    t_last_sentence = time.time()
     t_first_response = None
-    was_interrupted = False 
+    was_interrupted = False
 
     try:
         # ZMĚNA: Odstraněny složité options pro zrychlení startu (Time To First Token)
@@ -325,7 +330,7 @@ async def stream_ai_realtime(user_question, voice_id):
             messages=messages,
             stream=True,
             # options={
-            #    "num_ctx": 4096, 
+            #    "num_ctx": 4096,
             #    "temperature": 0.6,
             # }
         )
@@ -333,9 +338,8 @@ async def stream_ai_realtime(user_question, voice_id):
         async for chunk in stream:
             # --- KONTROLA PŘERUŠENÍ 1 ---
             if current_request_id != my_request_id:
-                print(f"[STOP] Generování přerušeno (ID Changed)")
                 was_interrupted = True
-                break 
+                break
             # ---------------------------
 
             text_part = chunk["message"]["content"]
@@ -362,15 +366,23 @@ async def stream_ai_realtime(user_question, voice_id):
                     # Přeskočíme prázdné nebo nesmyslné znaky
                     if not clean_sent and not emotion:
                         continue
-                    if not re.search(r"[a-zA-Z0-9ěščřžýáíéůúňťďĚŠČŘŽÝÁÍÉŮÚŇŤĎ]", clean_sent) and not emotion:
-                         continue
+                    if (
+                        not re.search(
+                            r"[a-zA-Z0-9ěščřžýáíéůúňťďĚŠČŘŽÝÁÍÉŮÚŇŤĎ]", clean_sent
+                        )
+                        and not emotion
+                    ):
+                        continue
 
                     # Časování první odpovědi
                     if t_first_response is None:
                         t_first_response = time.time()
-                        print(f"⚡ [TIMER FIRST] První věta za {t_first_response - t_start_total:.2f}s")
+                        print(
+                            f"⚡ [TIMER FIRST] První věta za {t_first_response - t_start_total:.2f}s"
+                        )
 
-                    if not emotion: emotion = "neutral"
+                    if not emotion:
+                        emotion = "neutral"
 
                     full_clean_response_accumulator += clean_sent + " "
 
@@ -378,68 +390,83 @@ async def stream_ai_realtime(user_question, voice_id):
                     # Formát: [4B Len][JSON][4B Len 0] (Audio bude následovat)
                     json_payload = {"text": clean_sent, "emotion": emotion}
                     text_bytes = json.dumps(json_payload).encode("utf-8")
-                    
+
                     yield (
-                        struct.pack(">I", len(text_bytes)) + 
-                        text_bytes + 
-                        struct.pack(">I", 0)
+                        struct.pack(">I", len(text_bytes))
+                        + text_bytes
+                        + struct.pack(">I", 0)
                     )
 
                     # 2. GENEROVÁNÍ A ODESLÁNÍ AUDIA (TTS)
                     if clean_sent:
                         t_tts_start = time.time()
-                        
+
                         # Check před náročným TTS
                         if current_request_id != my_request_id:
                             was_interrupted = True
                             break
-                        
+
                         # Streamování audia z TTS funkce
-                        async for audio_chunk in text_to_speech_stream_async(clean_sent, voice_id):
+                        async for audio_chunk in text_to_speech_stream_async(
+                            clean_sent, voice_id
+                        ):
                             # Check uvnitř streamu audia
                             if current_request_id != my_request_id:
                                 was_interrupted = True
-                                break 
-                            
+                                break
+
                             # Formát: [4B Len 0][4B Len Audio][Audio Data]
                             yield (
-                                struct.pack(">I", 0) + 
-                                struct.pack(">I", len(audio_chunk)) + 
-                                audio_chunk
+                                struct.pack(">I", 0)
+                                + struct.pack(">I", len(audio_chunk))
+                                + audio_chunk
                             )
-                        
-                        print(f"[TTS] Audio hotovo za {time.time() - t_tts_start:.2f}s")
 
-                    t_last_sentence = time.time()
+                        print(f"[TTS] Audio hotovo za {time.time() - t_tts_start:.2f}s")
 
                 # Poslední část (nedokončená věta) zůstává v bufferu
                 sentence_buffer = parts[-1]
-            
-            if was_interrupted: break
+
+            if was_interrupted:
+                break
 
         # --- DOŘEŠENÍ ZBYTKU BUFFERU (pokud nebylo stopnuto) ---
         if not was_interrupted and sentence_buffer.strip():
             emotion, clean_sent = extract_emotion_and_clean(sentence_buffer)
             if clean_sent:
                 # Stejná logika odeslání jako nahoře...
-                if not emotion: emotion = "neutral"
+                if not emotion:
+                    emotion = "neutral"
                 full_clean_response_accumulator += clean_sent
-                
+
                 json_payload = {"text": clean_sent, "emotion": emotion}
                 text_bytes = json.dumps(json_payload).encode("utf-8")
-                yield (struct.pack(">I", len(text_bytes)) + text_bytes + struct.pack(">I", 0))
+                yield (
+                    struct.pack(">I", len(text_bytes))
+                    + text_bytes
+                    + struct.pack(">I", 0)
+                )
 
                 # TTS pro zbytek
-                if current_request_id == my_request_id: # Poslední check
-                    async for audio_chunk in text_to_speech_stream_async(clean_sent, voice_id):
-                        if current_request_id != my_request_id: break
-                        yield (struct.pack(">I", 0) + struct.pack(">I", len(audio_chunk)) + audio_chunk)
+                if current_request_id == my_request_id:  # Poslední check
+                    async for audio_chunk in text_to_speech_stream_async(
+                        clean_sent, voice_id
+                    ):
+                        if current_request_id != my_request_id:
+                            break
+                        yield (
+                            struct.pack(">I", 0)
+                            + struct.pack(">I", len(audio_chunk))
+                            + audio_chunk
+                        )
 
         # --- ULOŽENÍ DO HISTORIE ---
         # Ukládáme jen pokud konverzace proběhla korektně do konce
         if not was_interrupted:
             history.append({"role": "USER", "content": user_question})
-            history.append({"role": "MODEL", "content": full_clean_response_accumulator.strip()})
+            history.append(
+                {"role": "MODEL", "content": full_clean_response_accumulator.strip()}
+            )
             _write_history_raw(history)
             print(f"[DONE] Celkový čas: {time.time() - t_start_total:.2f}s")
         else:

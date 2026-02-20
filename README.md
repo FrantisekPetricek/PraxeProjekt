@@ -119,3 +119,4 @@ Tím se spustí
 - `GET /get_history` - Výpis historie konverzace.  
 - `DELETE /delete_history` - Smazání historie.  
 - `POST /chat_realtime` - Realtime komunikace mezi uživatelem a AI pomocí binárního audio streamu (Unity klient).  
+- `POST /stop_chat` - Zastaví AI generaci.

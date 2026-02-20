@@ -56,3 +56,5 @@ UnityClient/*.VC.db
 Thumbs.db
 .vscode/
 .idea/
+
+/Builds

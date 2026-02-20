@@ -32,4 +32,9 @@ public class ChatMessageItem : MonoBehaviour
             messageText.alignment = TextAlignmentOptions.Left;
         }
     }
+
+    public void SetNoHistoryText()
+    {
+        messageText.text = $"<b>System</b> No history found";
+    }
 }

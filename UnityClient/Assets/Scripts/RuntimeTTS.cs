@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -39,17 +39,19 @@ public class RuntimeTTS : MonoBehaviour
 
     public bool isProcessing = false;
 
-    public bool IsSpeaking
-    {
-        
-        get 
-        { 
-            return npcAudioSource != null && npcAudioSource.isPlaying; 
-        }
-    }
+    public bool IsSpeaking => npcAudioSource != null && npcAudioSource.isPlaying;
 
     // --- ID Generace pro zastavení starých requestů ---
     private int currentGenerationId = 0;
+
+    /// <summary>
+    /// Zvýší ID generace a vrátí jeho novou hodnotu.
+    /// Používej pro start nové konverzace nebo pro invalidaci staré.
+    /// </summary>
+    private int NextGenerationId()
+    {
+        return ++currentGenerationId;
+    }
 
     // Ukládáme si reference na běžící coroutiny, abychom je mohli stopnout
     private Coroutine playbackCoroutine;
@@ -166,8 +168,8 @@ public class RuntimeTTS : MonoBehaviour
             playerInput.text = "";
 
             // Zvedneme ID generace -> nová konverzace
-            currentGenerationId++;
-            StartCoroutine(ConversationSequence(text, currentGenerationId));
+            int generationId = NextGenerationId();
+            StartCoroutine(ConversationSequence(text, generationId));
         }
 
         // Hlasový vstup (Klávesa)
@@ -182,7 +184,7 @@ public class RuntimeTTS : MonoBehaviour
     public void StopAI()
     {
         // 1. Zneplatníme staré requesty (zvýšíme ID)
-        currentGenerationId++;
+        NextGenerationId();
 
         // 2. Zastavíme audio
         if (npcAudioSource && npcAudioSource.isPlaying)
@@ -214,7 +216,9 @@ public class RuntimeTTS : MonoBehaviour
     private IEnumerator SendStopSignalToBackend()
     {
         // Získání URL (stejné jako předtím)
-        string stopUrl = ConfigLoader.config != null ? ConfigLoader.GetUrl(ConfigLoader.config.stopEndpoint) : "http://localhost:8000/stop";
+        string stopUrl = ConfigLoader.config != null
+            ? ConfigLoader.GetUrl(ConfigLoader.config.stopEndpoint)
+            : "http://localhost:8000/stop_chat";
 
 
         // --- OPRAVA ---
@@ -235,8 +239,8 @@ public class RuntimeTTS : MonoBehaviour
         if (playerInput) playerInput.text = recognizedText;
 
         // Zvedneme ID generace -> nová konverzace
-        currentGenerationId++;
-        StartCoroutine(ConversationSequence(recognizedText, currentGenerationId));
+        int generationId = NextGenerationId();
+        StartCoroutine(ConversationSequence(recognizedText, generationId));
     }
 
     // --- HLAVNÍ LOGIKA KONVERZACE ---

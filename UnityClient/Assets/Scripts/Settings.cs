@@ -10,10 +10,17 @@ public class Settings : MonoBehaviour
     public STTManager sttManager;
     public GameObject settingsPanel;
 
+    // Odkaz na tvùj existující chatovací skript
+    public ChatUIWindow chatUIWindow;
+
+    [Header("History UI")]
+    public TextMeshProUGUI historyCountText;
+    public TextMeshProUGUI historyStatusText;
+    public Button deleteHistoryButton;
+
     [Header("Keybinding Buttons")]
     public Button talkKeyButton;
     public TextMeshProUGUI talkKeyText;
-
     public Button stopKeyButton;
     public TextMeshProUGUI stopKeyText;
 
@@ -29,7 +36,13 @@ public class Settings : MonoBehaviour
     [Header("Other Inputs")]
     public TMP_Dropdown micDropdown;
 
-    // Doèasné promìnné
+    // --- NOVÉ: Prvky pro nastavení zobrazení ---
+    [Header("Display Settings")]
+    public TMP_Dropdown resolutionDropdown;
+    public Toggle fullscreenToggle;
+    private Resolution[] resolutions;
+    // ------------------------------------------
+
     private KeyCode tempTalkKey;
     private KeyCode tempStopKey;
     private bool waitingForTalkKey = false;
@@ -38,6 +51,10 @@ public class Settings : MonoBehaviour
     void Start()
     {
         if (settingsPanel) settingsPanel.SetActive(false);
+        if (historyStatusText) historyStatusText.text = "";
+
+        // Inicializujeme a naèteme rozlišení hned po startu
+        InitializeDisplaySettings();
     }
 
     public void ToggleSettings()
@@ -49,7 +66,6 @@ public class Settings : MonoBehaviour
 
             if (isActive)
             {
-                // Naèteme aktuální klávesy do temp promìnných
                 tempTalkKey = ConfigLoader.talkKey;
                 tempStopKey = ConfigLoader.stopKey;
 
@@ -58,20 +74,18 @@ public class Settings : MonoBehaviour
 
                 waitingForTalkKey = false;
                 waitingForStopKey = false;
+
+                // Aktualizujeme UI pro historii hned pøi otevøení
+                UpdateHistoryUI();
             }
         }
     }
 
-    // --- ZMÌNA ZDE ---
     private void LoadValuesToUI()
     {
         if (ConfigLoader.config == null) return;
 
-        // 1. Base URL necháme tak, jak je (to je základ)
         apiBaseInput.text = ConfigLoader.config.apiBaseUrl;
-
-        // 2. Ostatní endpointy naèteme jako KOMPLETNÍ URL pomocí GetUrl()
-        // Tím se spojí BaseUrl + /tts -> http://localhost:8000/tts
         ttsEndpointInput.text = ConfigLoader.GetUrl(ConfigLoader.config.ttsEndpoint);
         chatStreamInput.text = ConfigLoader.GetUrl(ConfigLoader.config.chatRealTime);
         sttEndpointInput.text = ConfigLoader.GetUrl(ConfigLoader.config.sttEndpoint);
@@ -79,15 +93,115 @@ public class Settings : MonoBehaviour
         historyDelInput.text = ConfigLoader.GetUrl(ConfigLoader.config.chatHistoryDelete);
         stopEndpointInput.text = ConfigLoader.GetUrl(ConfigLoader.config.stopEndpoint);
 
-        // Klávesy
         if (talkKeyText) talkKeyText.text = tempTalkKey.ToString();
         if (stopKeyText) stopKeyText.text = tempStopKey.ToString();
-
-        RefreshMicrophones();
     }
-    // -----------------
 
-    // --- LOGIKA TLAÈÍTEK ---
+    // --- LOGIKA HISTORIE PØES TVÙJ SKRIPT ---
+    private void UpdateHistoryUI()
+    {
+        if (historyStatusText) historyStatusText.text = "";
+
+        if (chatUIWindow != null)
+        {
+            // Vezmeme poèet zpráv pøímo z tvého ChatUIWindow
+            int count = chatUIWindow.currentMessageCount;
+
+            if (historyCountText) historyCountText.text = $"{count}";
+            if (deleteHistoryButton) deleteHistoryButton.interactable = (count > 0);
+        }
+        else
+        {
+            if (historyCountText) historyCountText.text = "err";
+            if (deleteHistoryButton) deleteHistoryButton.interactable = false;
+        }
+    }
+
+    public void OnClick_DeleteHistory()
+    {
+        if (chatUIWindow != null)
+        {
+            if (historyStatusText)
+            {
+                historyStatusText.color = Color.yellow;
+                historyStatusText.text = "Mažu...";
+            }
+            if (deleteHistoryButton) deleteHistoryButton.interactable = false;
+
+            // Zavoláme tvou funkci a øekneme jí, co má udìlat, až skonèí
+            chatUIWindow.ClearAllHistory(() =>
+            {
+                if (historyStatusText)
+                {
+                    historyStatusText.color = Color.green;
+                    historyStatusText.text = "Historie byla úspìšnì vymazána!";
+                }
+                if (historyCountText) historyCountText.text = "0";
+            });
+        }
+    }
+    // ----------------------------------------------
+
+    // --- NOVÉ: Inicializace a logika pro rozlišení / fullscreen ---
+    private void InitializeDisplaySettings()
+    {
+        if (resolutionDropdown == null || fullscreenToggle == null) return;
+
+        resolutions = Screen.resolutions;
+        resolutionDropdown.ClearOptions();
+
+        List<string> options = new List<string>();
+        int currentResolutionIndex = 0;
+
+        // Naèteme uložená data (pokud nejsou, použijeme aktuální nastavení monitoru)
+        bool savedFullscreen = PlayerPrefs.GetInt("fullscreen", Screen.fullScreen ? 1 : 0) == 1;
+        int savedWidth = PlayerPrefs.GetInt("resWidth", Screen.currentResolution.width);
+        int savedHeight = PlayerPrefs.GetInt("resHeight", Screen.currentResolution.height);
+
+        for (int i = 0; i < resolutions.Length; i++)
+        {
+            string option = resolutions[i].width + " x " + resolutions[i].height;
+            options.Add(option);
+
+            // Najdeme index uloženého/aktuálního rozlišení v seznamu
+            if (resolutions[i].width == savedWidth && resolutions[i].height == savedHeight)
+            {
+                currentResolutionIndex = i;
+            }
+        }
+
+        resolutionDropdown.AddOptions(options);
+        resolutionDropdown.value = currentResolutionIndex;
+        resolutionDropdown.RefreshShownValue();
+        fullscreenToggle.isOn = savedFullscreen;
+
+        // Aplikujeme rozlišení hned po startu
+        Screen.SetResolution(savedWidth, savedHeight, savedFullscreen);
+    }
+
+    public void SetResolution(int resolutionIndex)
+    {
+        if (resolutions == null || resolutions.Length == 0) return;
+
+        Resolution resolution = resolutions[resolutionIndex];
+        Screen.SetResolution(resolution.width, resolution.height, Screen.fullScreen);
+
+        // Uložení do PlayerPrefs
+        PlayerPrefs.SetInt("resWidth", resolution.width);
+        PlayerPrefs.SetInt("resHeight", resolution.height);
+        PlayerPrefs.Save();
+    }
+
+    public void SetFullscreen(bool isFullscreen)
+    {
+        Screen.fullScreen = isFullscreen;
+
+        // Uložení do PlayerPrefs
+        PlayerPrefs.SetInt("fullscreen", isFullscreen ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+    // --------------------------------------------------------------
+
     public void OnClick_ChangeTalkKey()
     {
         waitingForTalkKey = true;
@@ -108,18 +222,8 @@ public class Settings : MonoBehaviour
         Event e = Event.current;
         if (e.isKey && e.keyCode != KeyCode.None)
         {
-            if (waitingForTalkKey)
-            {
-                tempTalkKey = e.keyCode;
-                talkKeyText.text = e.keyCode.ToString();
-                waitingForTalkKey = false;
-            }
-            else if (waitingForStopKey)
-            {
-                tempStopKey = e.keyCode;
-                stopKeyText.text = e.keyCode.ToString();
-                waitingForStopKey = false;
-            }
+            if (waitingForTalkKey) { tempTalkKey = e.keyCode; talkKeyText.text = e.keyCode.ToString(); waitingForTalkKey = false; }
+            else if (waitingForStopKey) { tempStopKey = e.keyCode; stopKeyText.text = e.keyCode.ToString(); waitingForStopKey = false; }
         }
     }
 
@@ -133,25 +237,18 @@ public class Settings : MonoBehaviour
         for (int i = 0; i < devices.Length; i++)
         {
             options.Add(devices[i]);
-            if (sttManager != null && devices[i] == sttManager.GetCurrentMicrophone())
-            {
-                currentMicIndex = i;
-            }
+            if (sttManager != null && devices[i] == sttManager.GetCurrentMicrophone()) currentMicIndex = i;
         }
         micDropdown.AddOptions(options);
         micDropdown.value = currentMicIndex;
         micDropdown.RefreshShownValue();
     }
 
-    // --- ULOŽENÍ ---
     public void SaveAndClose()
     {
         if (ConfigLoader.config != null)
         {
-            // Tady ukládáme to, co je v InputFieldu (což je teï celá adresa)
-            // ConfigLoader si s tím poradí, protože pozná, že to zaèíná na "http"
             ConfigLoader.config.apiBaseUrl = apiBaseInput.text;
-
             ConfigLoader.config.ttsEndpoint = ttsEndpointInput.text;
             ConfigLoader.config.chatRealTime = chatStreamInput.text;
             ConfigLoader.config.sttEndpoint = sttEndpointInput.text;
@@ -170,9 +267,7 @@ public class Settings : MonoBehaviour
         }
 
         if (configLoader != null) configLoader.SaveConfig();
-
         if (settingsPanel) settingsPanel.SetActive(false);
-        Debug.Log("Nastavení uloženo.");
     }
 
     public void Cancel()

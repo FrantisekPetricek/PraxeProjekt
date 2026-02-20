@@ -1,12 +1,11 @@
-using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using System.Collections;
+using System; 
 
 public class ChatUIWindow : MonoBehaviour
 {
-
     public ChatHistoryLoader historyLoader;
     public GameObject messagePrefab;
     public Transform contentContainer;
@@ -14,7 +13,9 @@ public class ChatUIWindow : MonoBehaviour
 
     public bool loadOnStart = true;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    [HideInInspector]
+    public int currentMessageCount = 0;
+
     void Start()
     {
         if (loadOnStart && historyLoader != null)
@@ -30,45 +31,59 @@ public class ChatUIWindow : MonoBehaviour
 
     private void OnHistoryRecieved(List<ChatHistoryLoader.ChatMessage> message)
     {
+        currentMessageCount = message.Count;
+        
         foreach (Transform child in contentContainer)
         {
             Destroy(child.gameObject);
         }
 
-        foreach (var msg in message)
+        if (message.Count == 0)
         {
-            GameObject newItem = Instantiate(messagePrefab, contentContainer);
-            ChatMessageItem itemScript = newItem.GetComponent<ChatMessageItem>();
+            Debug.Log("No chat history found.");
+            GameObject item =  Instantiate(messagePrefab, contentContainer);
+            ChatMessageItem itemScript = item.GetComponent<ChatMessageItem>();
 
             if (itemScript != null)
             {
-                itemScript.Setup(msg.role, msg.content);
+                itemScript.SetNoHistoryText();
+            }
+        }
+        else
+        {
+            foreach (var msg in message)
+            {
+                GameObject newItem = Instantiate(messagePrefab, contentContainer);
+                ChatMessageItem itemScript = newItem.GetComponent<ChatMessageItem>();
+
+                if (itemScript != null)
+                {
+                    itemScript.Setup(msg.role, msg.content);
+                }
             }
         }
 
-        StartCoroutine(ScrollToBottom());
 
+        StartCoroutine(ScrollToBottom());
     }
 
-    public void ClearAllHistory()
+    public void ClearAllHistory(Action onSuccess = null)
     {
-        if(historyLoader != null)
+        if (historyLoader != null)
         {
             historyLoader.DeleteHistory(() =>
-
-            RefreshHistory()
-            );
+            {
+                RefreshHistory();
+                onSuccess?.Invoke(); 
+            });
         }
     }
 
     IEnumerator ScrollToBottom()
     {
         yield return new WaitForEndOfFrame();
-
         Canvas.ForceUpdateCanvases();
-
         scrollRect.verticalNormalizedPosition = 0f;
-
         yield return new WaitForEndOfFrame();
         scrollRect.verticalNormalizedPosition = 0f;
     }
