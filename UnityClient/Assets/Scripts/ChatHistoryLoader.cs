@@ -76,6 +76,7 @@ public class ChatHistoryLoader : MonoBehaviour
             if (req.result != UnityWebRequest.Result.Success)
             {
                 Debug.LogError($"Chyba pøi stahování historie: {req.error}");
+                ErrorManager.Instance.ShowError($"Nepodaøilo se naèíst historii z {url}.\nChyba: {req.error}", "Chyba pøi naèítání historie");
             }
             else
             {
