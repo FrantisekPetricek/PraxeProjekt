@@ -6,29 +6,29 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 
 ## Funkce 
 
-* **LLM :** Lokální LLM běžící v **Ollama** (např. `llama3.1:latest` podle `.env`).
+* **LLM :** Lokální LLM běžící v **Ollama** 
 * **Hlas (TTS):** Real-time syntéza hlasu pomocí lokální služby **XTTS** (HTTP API).
-* **Speech-to-text (STT):** Rychlý přepis řeči pomocí **Faster-Whisper** běžícího lokálně.
+* **Speech-to-text (STT):** Rychlý přepis řeči pomocí **Faster-Whisper** .
 * **Asynchronní jádro:** Backend postavený na **FastAPI** s plnou podporou `async/await` pro paralelní zpracování více uživatelů.
-* **Unity Frontend:** 3D Avatar s lip-syncem (synchronizace rtů) a animacemi podle emocí z textu.
+* **Unity Frontend:** 3D Avatar s lip-syncem.
 
 ## Technologie
 
 ### Backend
 * Python, FastAPI, Uvicorn
-* **uv** (moderní package manager)
+* **uv** 
 
-### AI modely (tato větev – lokální)
+### AI modely 
 * **LLM:** model v Ollama (např. `llama3.1:latest`)
-* **TTS:** XTTS (běžící jako samostatná služba, viz `TTS_API_URL`)
-* **STT:** Faster-Whisper (medium)
+* **TTS:** XTTS 
+* **STT:** Faster-Whisper 
 
 ### Infrastruktura
 * Docker, Docker Compose
 * NVIDIA CUDA 11.8/12.x
 
 ### Frontend
-* Unity 2022+ (C#)
+* Unity 2022+ 
 ###  Architektura projektu
 
 ```mermaid
@@ -57,9 +57,6 @@ graph TD
 
 ## Spuštění
 
-### Požadavky
-* **NVIDIA GPU** (Doporučeno min. 8GB VRAM).
-* **Docker & Docker Compose**.
 
 ## Struktura projektu
 ```
@@ -81,25 +78,25 @@ graph TD
 └── UnityClient/                  # Frontend (Unity 3D projekt)
 ```
 
-V kořenovém adresáři `Backend` vytvořte soubor `.env` (nejjednodušší je zkopírovat připravený `.env_example`).
+V kořenovém adresáři `Backend` vytvořte soubor `.env`. 
 
 PowerShell:
 ```powershell
 cd .\Backend\
 Copy-Item .env_example .env
 ```
-Do `.env` souboru bude potřeba doplnit hodnoty pro lokální služby (dle tvého prostředí):
 
-**Lokální konfigurace (tato větev):**
+
+**env konfigurace:**
 
 - `OLLAMA_HOST` – URL na Ollama server 
-- `OLLAMA_MODEL` – název modelu v Ollama (např. `llama3.1:latest`)
+- `OLLAMA_MODEL` – název modelu v Ollama 
 - `TTS_API_URL` – URL na XTTS server
 - `XTTS_LANGUAGE` – jazyk, typicky `cs`
 - `VOICE_ID_AI` – cesta k referenčnímu audio souboru pro AI hlas
 - `VOICE_ID_PLAYER` – cesta k referenčnímu audio souboru pro hlas hráče
 - `WHISPER_API_URL` – URL na Faster-Whisper server
-- `WHISPER_MODEL_SIZE` – velikost modelu (např. `medium`)
+- `WHISPER_MODEL_SIZE` – velikost modelu 
 
 
 #### Spuštění backendu
