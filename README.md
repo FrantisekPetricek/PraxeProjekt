@@ -96,8 +96,8 @@ gantt
     axisFormat  %S s
     
     section LLM (Ollama)
-    Start (TTFT ~0.6s)     :done, llm1, 0, 1
-    Dokončení 1. věty      :done, llm2, 1, 2
+    Start                  :done, llm1, 0, 1
+    1. věta                :done, llm2, 1, 2
     Generování 2. věty     :active, llm3, 2, 4
     Generování zbytku...   :llm4, 4, 10
     
