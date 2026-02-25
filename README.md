@@ -34,22 +34,71 @@ Cílem projektu je vytvořit konverzačního partnera s **nízkou latencí**, **
 ```mermaid
 graph TD
     User((Uživatel))
-    Unity[Unity Client]
-    API[FastAPI Backend]
-    
-    Whisper[Faster-Whisper - STT]
-    Ollama[Ollama - AI Mozek]
-    XTTS[XTTS - Hlas]
 
-    %% Tok dat
-    User -- Hlas a Text --> Unity
-    Unity -- HTTP Request --> API
+    subgraph Client ["Frontend (Unity)"]
+        Unity[Unity Avatar]
+        InputDecider{"Zvuk / Text"}
+    end
+
+    User -- "Mluví (Audio)" --> InputDecider
+    User -- "Píše (Text)" --> InputDecider
+    InputDecider --> Unity
+
+    Unity -- "HTTP Request" --> API
+
+    subgraph Server ["Backend Services (Docker)"]
+        API[FastAPI Router]
+        
+        CheckInput{"Audio nebo<br/>Text?"}
+        
+        STT["Faster-Whisper<br/>(Audio to Text)"]
+        LLM["Ollama<br/>(Generování odpovědi)"]
+        TTS["XTTS<br/>(Text to Speech)"]
+    end
+
+    %% --- TOK DAT V BACKENDU ---
+    API --> CheckInput
     
-    API -- Audio WAV --> Whisper
-    API -- Prompt --> Ollama
-    API -- Text odpovedi --> XTTS 
+    %% Cesta 1: Zvuk
+    CheckInput -- "Je to Zvuk (WAV)" --> STT
+    STT -- "Přepsaný text" --> LLM
+    
+    %% Cesta 2: Text (přímá)
+    CheckInput -- "Je to Text" --> LLM
+
+    %% Zpracování odpovědi
+    LLM -- "Odpověď (text)" --> TTS
+    TTS -- "Audio Stream (WAV)" --> API
+
+    %% --- VÝSTUP ZPĚT K UŽIVATELI ---
+    API -- "Audio" --> Unity
+    Unity -- "Synchronizace rtů a Zvuk" --> User 
 ```
-
+```mermaid
+%%{init: {'gantt': {'barHeight': 35, 'barGap': 15, 'fontSize': 14}}}%%
+gantt
+    title Paralelní zpracování dotazu (Pipeline)
+    dateFormat  s
+    axisFormat  %S s
+    
+    section LLM (Ollama)
+    Start (TTFT ~0.6s)     :done, llm1, 0, 1
+    Dokončení 1. věty      :done, llm2, 1, 2
+    Generování 2. věty     :active, llm3, 2, 4
+    Generování zbytku...   :llm4, 4, 10
+    
+    section TTS (XTTS)
+    Čeká na text           :milestone, 0, 2
+    Syntéza 1. věty (~1.6s):done, tts1, 2, 4
+    Syntéza 2. věty        :active, tts2, 4, 6
+    Syntéza zbytku...      :tts3, 6, 10
+    
+    section Unity (Hráč)
+    Ticho (Zpracování)     :crit, u1, 0, 4
+    Přehrává 1. větu       :done, u2, 4, 6
+    Přehrává 2. větu       :active, u3, 6, 8
+    Přehrává zbytek...     :u4, 8, 10
+```
 ## Ukázka 
 ![Ukázka konverzace](images/UnityShowcase.gif)
     
