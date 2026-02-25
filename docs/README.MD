@@ -6,7 +6,7 @@
 Pro snadnou orientaci jsme dokumentaci rozdělili do dvou hlavních částí podle architektury projektu:
 
 ###  Backend (Python / FastAPI)
-* **[Dokumentace k API (api_reference.md)](api_reference.md)**
+* **[Dokumentace k API (api_reference.md)](api.md)**
   * Obsahuje detailní rozpis všech dostupných REST endpointů.
   * **Klíčová část:** Detailní popis našeho unikátního **binárního streamu** pro `/chat_realtime`. 
   * Popis datových struktur (Pydantic modely).
