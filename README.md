@@ -74,8 +74,22 @@ graph TD
     API -- "Audio" --> Unity
     Unity -- "Synchronizace rtů a Zvuk" --> User 
 ```
+
 ```mermaid
-%%{init: {'gantt': {'barHeight': 35, 'barGap': 15, 'fontSize': 14}}}%%
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'doneTaskBkgColor': '#90EE90', 'doneTaskBorderColor': '#228B22',
+    'activeTaskBkgColor': '#87CEEB', 'activeTaskBorderColor': '#4682B4',
+    'critTaskBkgColor': '#FF6347', 'critTaskBorderColor': '#B22222',
+    'taskBkgColor': '#DDA0DD', 'taskBorderColor': '#8B008B',
+    'milestoneBkgColor': '#DDA0DD', 'milestoneBorderColor': '#8B008B',
+    'taskTextDarkColor': '#000000', 'taskTextLightColor': '#000000'
+  },
+  'gantt': {
+    'barHeight': 35, 'barGap': 15, 'fontSize': 14
+  }
+}}%%
 gantt
     title Paralelní zpracování dotazu (Pipeline)
     dateFormat  s
