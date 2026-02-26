@@ -79,15 +79,30 @@ graph TD
 %%{init: {
   'theme': 'base',
   'themeVariables': {
-    'doneTaskBkgColor': '#90EE90', 'doneTaskBorderColor': '#228B22',
-    'activeTaskBkgColor': '#87CEEB', 'activeTaskBorderColor': '#4682B4',
-    'critTaskBkgColor': '#FF6347', 'critTaskBorderColor': '#B22222',
-    'taskBkgColor': '#DDA0DD', 'taskBorderColor': '#8B008B',
-    'milestoneBkgColor': '#DDA0DD', 'milestoneBorderColor': '#8B008B',
-    'taskTextDarkColor': '#000000', 'taskTextLightColor': '#000000'
+    'primaryColor': '#1f6feb',
+    'primaryTextColor': '#fff',
+    'primaryBorderColor': '#1f6feb',
+    'lineColor': '#8b949e',
+    'doneTaskBkgColor': '#238636',
+    'doneTaskBorderColor': '#2ea043',
+    'activeTaskBkgColor': '#1f6feb',
+    'activeTaskBorderColor': '#388bfd',
+    'critTaskBkgColor': '#da3633',
+    'critTaskBorderColor': '#f85149',
+    'taskBkgColor': '#8957e5',
+    'taskBorderColor': '#a371f7',
+    'milestoneBkgColor': '#d29922',
+    'milestoneBorderColor': '#e3b341',
+    'taskTextLightColor': '#ffffff',
+    'taskTextDarkColor': '#ffffff',
+    'taskTextOutsideColor': '#8b949e',
+    'titleColor': '#58a6ff'
   },
   'gantt': {
-    'barHeight': 35, 'barGap': 15, 'fontSize': 14
+    'barHeight': 40,
+    'barGap': 10,
+    'fontSize': 16,
+    'sectionFontSize': 18
   }
 }}%%
 gantt
@@ -96,22 +111,22 @@ gantt
     axisFormat  %S s
     
     section LLM (Ollama)
-    Start                  :done, llm1, 0, 1
-    1. věta                :done, llm2, 1, 2
-    Generování 2. věty     :active, llm3, 2, 4
-    Generování zbytku...   :llm4, 4, 10
+    Start                   :done, llm1, 0, 1
+    1. věta                 :done, llm2, 1, 2
+    Generování 2. věty      :active, llm3, 2, 4
+    Generování zbytku...    :llm4, 4, 10
     
     section TTS (XTTS)
-    Čeká na text           :milestone, 0, 2
-    Syntéza 1. věty (~1.6s):done, tts1, 2, 4
-    Syntéza 2. věty        :active, tts2, 4, 6
-    Syntéza zbytku...      :tts3, 6, 10
+    Čeká na text            :milestone, 0, 2
+    Syntéza 1. věty (~1.6s) :done, tts1, 2, 4
+    Syntéza 2. věty         :active, tts2, 4, 6
+    Syntéza zbytku...       :tts3, 6, 10
     
     section Unity (Hráč)
-    Ticho (Zpracování)     :crit, u1, 0, 4
-    Přehrává 1. větu       :done, u2, 4, 6
-    Přehrává 2. větu       :active, u3, 6, 8
-    Přehrává zbytek...     :u4, 8, 10
+    Ticho (Zpracování)      :crit, u1, 0, 4
+    Přehrává 1. větu        :done, u2, 4, 6
+    Přehrává 2. větu        :active, u3, 6, 8
+    Přehrává zbytek...      :u4, 8, 10
 ```
 ## Ukázka 
 ![Ukázka konverzace](images/UnityShowcase.gif)

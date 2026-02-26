@@ -19,6 +19,7 @@ public class AppConfig
     // Klávesy jako text (napø. "LeftControl", "Escape")
     public string inputKey;
     public string stopKey;
+    public string stopMenuKey; // Pøidáno pro klávesu pro otevøení menu
 }
 
 public class ConfigLoader : MonoBehaviour
@@ -28,6 +29,7 @@ public class ConfigLoader : MonoBehaviour
     // Tyto promìnné používáš ve høe
     public static KeyCode talkKey;
     public static KeyCode stopKey;
+    public static KeyCode stopMenuKey; // --- PØIDÁNO: Statická promìnná pro menu ---
 
     private void Awake()
     {
@@ -47,15 +49,21 @@ public class ConfigLoader : MonoBehaviour
                     talkKey = KeyCode.LeftControl;
                 }
 
-                // --- 2. PARSE STOP KEY (Tohle jsi potøeboval pøidat) ---
-                // Zkusíme pøevést string z JSONu na KeyCode. Pokud to selže, dáme Escape.
+                // --- 2. PARSE STOP KEY ---
                 if (!Enum.TryParse(config.stopKey, out stopKey))
                 {
-                    Debug.LogWarning($"Neznámá klávesa pro stop: {config.stopKey}, nastavuji Escape");
-                    stopKey = KeyCode.Escape;
+                    Debug.LogWarning($"Neznámá klávesa pro stop: {config.stopKey}, nastavuji Tab");
+                    stopKey = KeyCode.Tab;
                 }
 
-                Debug.Log($"Config naèten. Talk: {talkKey}, Stop: {stopKey}");
+                // --- 3. PARSE STOP MENU KEY (PØIDÁNO) ---
+                if (!Enum.TryParse(config.stopMenuKey, out stopMenuKey))
+                {
+                    Debug.LogWarning($"Neznámá klávesa pro menu: {config.stopMenuKey}, nastavuji Escape");
+                    stopMenuKey = KeyCode.Escape; // Výchozí klávesa, pokud v JSONu chybí nebo je špatnì
+                }
+
+                Debug.Log($"Config naèten. Talk: {talkKey}, Stop: {stopKey}, Menu: {stopMenuKey}");
             }
             catch (Exception e)
             {
@@ -85,12 +93,14 @@ public class ConfigLoader : MonoBehaviour
             stopEndpoint = "/stop_chat",
 
             inputKey = "LeftControl",
-            stopKey = "Escape" // Defaultní string
+            stopKey = "Tab",
+            stopMenuKey = "Escape" 
         };
 
-        // Nastavíme i statické promìnné
+        
         talkKey = KeyCode.LeftControl;
-        stopKey = KeyCode.Escape;
+        stopKey = KeyCode.Tab;
+        stopMenuKey = KeyCode.Escape; 
     }
 
     public static string GetUrl(string endpointConfigValue)
@@ -109,13 +119,16 @@ public class ConfigLoader : MonoBehaviour
 
         return baseClean + endpointConfigValue;
     }
+
     public void SaveConfig()
     {
         string path = Path.Combine(Application.streamingAssetsPath, "config.json");
         try
         {
+            
             config.inputKey = talkKey.ToString();
             config.stopKey = stopKey.ToString();
+            config.stopMenuKey = stopMenuKey.ToString(); 
 
             string json = JsonUtility.ToJson(config, true);
             File.WriteAllText(path, json);

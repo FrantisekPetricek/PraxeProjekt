@@ -16,7 +16,7 @@ public class QuitManager : MonoBehaviour
     void Update()
     {
         // HlÌd·, jestli hr·Ë zm·Ëkl kl·vesu Escape
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (Input.GetKeyDown(ConfigLoader.stopMenuKey))
         {
             ToggleQuitPopup();
         }

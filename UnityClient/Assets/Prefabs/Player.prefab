@@ -167,8 +167,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3082986588711915922}
-  - component: {fileID: 781278949281550748}
   - component: {fileID: 5724353756500598292}
+  - component: {fileID: 781278949281550748}
   - component: {fileID: 1678923681408907637}
   - component: {fileID: 3138265406999491609}
   - component: {fileID: 6432961607978137587}
@@ -195,27 +195,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1142664364947522966}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &781278949281550748
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6548342948452674602}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b0b97b38f2f1fd24185315141a6c6a56, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Oculus.LipSync::OVRLipSyncContextMorphTarget
-  skinnedMeshRenderer: {fileID: 8550933416777761019}
-  visemeToBlendTargets: 000000000100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d0000000e000000
-  enableVisemeTestKeys: 0
-  visemeTestKeys: 600000000900000071000000770000006500000072000000740000007900000075000000690000006f000000700000005b0000005d0000005c000000
-  laughterKey: 301
-  laughterBlendTarget: 15
-  laughterThreshold: 0.5
-  laughterMultiplier: 1.5
-  smoothAmount: 70
 --- !u!82 &5724353756500598292
 AudioSource:
   m_ObjectHideFlags: 0
@@ -313,6 +292,27 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &781278949281550748
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6548342948452674602}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0b97b38f2f1fd24185315141a6c6a56, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Oculus.LipSync::OVRLipSyncContextMorphTarget
+  skinnedMeshRenderer: {fileID: 8550933416777761019}
+  visemeToBlendTargets: 000000000100000002000000030000000400000005000000060000000700000008000000090000000a0000000b0000000c0000000d0000000e000000
+  enableVisemeTestKeys: 0
+  visemeTestKeys: 600000000900000071000000770000006500000072000000740000007900000075000000690000006f000000700000005b0000005d0000005c000000
+  laughterKey: 301
+  laughterBlendTarget: 15
+  laughterThreshold: 0.5
+  laughterMultiplier: 1.5
+  smoothAmount: 70
 --- !u!114 &1678923681408907637
 MonoBehaviour:
   m_ObjectHideFlags: 0
