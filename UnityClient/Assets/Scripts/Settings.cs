@@ -175,6 +175,15 @@ public class Settings : MonoBehaviour
         resolutionDropdown.RefreshShownValue();
         fullscreenToggle.isOn = savedFullscreen;
 
+        #if UNITY_STANDALONE_LINUX
+                Debug.Log("Linux detected: Forcing windowed mode to prevent Docker crash.");
+                Screen.SetResolution(savedWidth, savedHeight, false); // false = vždy v oknì
+                fullscreenToggle.isOn = false;
+        #else
+                    Screen.SetResolution(savedWidth, savedHeight, savedFullscreen);
+        #endif
+
+
         // Aplikujeme rozlišení hned po startu
         Screen.SetResolution(savedWidth, savedHeight, savedFullscreen);
     }
@@ -194,6 +203,12 @@ public class Settings : MonoBehaviour
 
     public void SetFullscreen(bool isFullscreen)
     {
+        #if UNITY_STANDALONE_LINUX
+            Screen.fullScreen = false; // Na linuxu prostì nepovolíme fullscreen
+        #else
+            Screen.fullScreen = isFullscreen;
+        #endif
+
         Screen.fullScreen = isFullscreen;
 
         // Uložení do PlayerPrefs

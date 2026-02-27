@@ -7,5 +7,6 @@
     "chatHistoryDelete": "http://127.0.0.1:8000/delete_history",
     "stopEndpoint": "http://127.0.0.1:8000/stop_chat",
     "inputKey": "LeftControl",
-    "stopKey": "Escape"
+    "stopKey": "Escape",
+    "stopMenuKey": "Escape"
 }
