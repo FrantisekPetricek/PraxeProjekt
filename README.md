@@ -140,20 +140,34 @@ gantt
 ```
 ├── Backend/
 │   ├── api/
-│   │   ├── src/                  
-│   │   │   ├── models/           # Pydantic schémata a datové modely
-│   │   │   ├── controllers.py    # Hlavní logika (propojení TTS, STT, LLM)
-│   │   │   ├── main.py           # Vstupní bod serveru (FastAPI app)
-│   │   │   ├── routers.py        # Definice API endpointů
-│   │   │   └── chat_history.json # Ukládání historie konverzace
+│   │   └── src/                  
+│   │       ├── models/           # Pydantic schémata a datové modely
+│   │       ├── controllers.py    # Hlavní logika (propojení TTS, STT, LLM)
+│   │       ├── main.py           # Vstupní bod serveru (FastAPI app)
+│   │       ├── routers.py        # Definice API endpointů
+│   │       └── chat_history.json # Ukládání historie konverzace
 │   │
-│   ├── docker/                   # Dockerfiles
-│   │
+│   ├── docker/                   # Dockerfiles a docker-compose
+│   ├── .dockerignore
+│   ├── .env_example              # Šablona pro proměnné prostředí
+│   ├── .python-version           # Definice verze Pythonu
 │   ├── makefile                  # Příkazy pro snadné spouštění
 │   ├── pyproject.toml            # Definice projektu a závislostí
-│   └── uv.lock                   # Uzamčené verze python balíčků (uv)
+│   └── uv.lock                   # Uzamčené verze balíčků (uv)
 │
-└── UnityClient/                  # Frontend (Unity 3D projekt)
+├── docs/                         # Dokumentace projektu
+│   ├── Showcase_videos/          # Video ukázky 
+│   ├── images/                   # Obrázky do README 
+│   ├── api.md                    # Dokumentace backendu
+│   ├── unity_client.md           # Dokumentace frontendu
+│   └── README.md                 # Dokumentace uvnitř složky docs
+│
+├── UnityClient/                  # Frontend (Unity 3D projekt)
+│
+├── .gitattributes                # Nastavení pro Git (např. LFS pro videa)
+├── .gitignore                    # Definice ignorovaných souborů
+├── LICENSE                       # Licence projektu
+└── README.md                     # Hlavní přehled projektu
 ```
 
 V kořenovém adresáři `Backend` vytvořte soubor `.env`. 
